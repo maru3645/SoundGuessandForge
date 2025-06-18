@@ -42,7 +42,7 @@
         }
         #module-palette { width: 200px; background-color: #f0f0f0; padding: 10px; }
         #param-editor { width: 230px; background-color: #f0f0f0; padding: 10px; overflow-y: auto;}
-        .connection-line { stroke: #555; stroke-width: 3; fill: none; }
+        .connection-line { stroke: #555; stroke-width: 3; fill: none; pointer-events: auto; }
         .connection-line:hover { stroke: #e74c3c; cursor: pointer;} /* ホバー時のスタイルとカーソル */
         /* ボタン共通スタイル */
         .control-button {
@@ -111,7 +111,7 @@
 
         <!-- 中央: ワークスペース -->
         <div id="workspace" class="flex-1">
-            <svg id="connections-svg" width="100%" height="100%" style="position: absolute; top: 0; left: 0; pointer-events: none;"></svg>
+            <svg id="connections-svg" width="100%" height="100%" style="position: absolute; top: 0; left: 0;"></svg>
             <!-- モジュールはここに動的に追加されます -->
         </div>
 

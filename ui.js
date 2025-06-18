@@ -199,6 +199,11 @@ function updateConnectionsSVG() {
                 disconnectModules(conn.sourceId, conn.targetId);
             }
         });
+        // ダブルクリックで即削除
+        line.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            disconnectModules(conn.sourceId, conn.targetId);
+        });
 
         connectionsSvg.appendChild(line);
     });
