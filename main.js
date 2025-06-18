@@ -149,19 +149,9 @@ window.addEventListener('load', () => {
         globalOutputNode = outputModule;
     }
     
-    // ゲーム用ボタンを追加
-    const globalControls = document.getElementById('global-controls');
-    const playAnswerButton = document.createElement('button');
-    playAnswerButton.textContent = '正解音を聞く';
-    playAnswerButton.className = 'control-button control-button-green';
-    playAnswerButton.addEventListener('click', playCorrectAnswer);
-    globalControls.appendChild(playAnswerButton);
-    
-    const checkAnswerButton = document.createElement('button');
-    checkAnswerButton.textContent = '答え合わせ';
-    checkAnswerButton.className = 'control-button control-button-gray';
-    checkAnswerButton.addEventListener('click', checkAnswer);
-    globalControls.appendChild(checkAnswerButton);
+    // 新ボタンのイベントリスナー追加
+    document.getElementById('play-answer-button').addEventListener('click', playCorrectAnswer);
+    document.getElementById('check-answer-button').addEventListener('click', checkAnswer);
     
     console.log('ページ読み込み完了、正解生成を開始します...');
     generateRandomCorrectAnswer();
