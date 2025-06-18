@@ -149,9 +149,11 @@ window.addEventListener('load', () => {
         globalOutputNode = outputModule;
     }
     
-    // 新ボタンのイベントリスナー追加
-    document.getElementById('play-answer-button').addEventListener('click', playCorrectAnswer);
-    document.getElementById('check-answer-button').addEventListener('click', checkAnswer);
+    // 新ボタンのDOM取得とイベントリスナー追加
+    const playAnswerButton = document.getElementById('play-answer-button');
+    const checkAnswerButton = document.getElementById('check-answer-button');
+    playAnswerButton.addEventListener('click', playCorrectAnswer);
+    checkAnswerButton.addEventListener('click', checkAnswer);
     
     console.log('ページ読み込み完了、正解生成を開始します...');
     generateRandomCorrectAnswer();

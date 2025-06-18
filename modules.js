@@ -323,6 +323,7 @@ class OutputModule extends AudioModule {
         this.initAudioNode();
     }
     initAudioNode() {
+        if (!audioContext) return; // audioContextがなければ何もしない
         this.audioNode = audioContext.destination;
     }
     createInputNodeDOM() {
