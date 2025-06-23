@@ -32,7 +32,7 @@ function generateRandomCorrectAnswer() {
                 break;
             case 'gain':
                 params = {
-                    gain: parseFloat((Math.random() * (0.8 - 0.1) + 0.1).toFixed(2))
+                    gain: parseFloat((Math.random() * (0.4 - 0.1) + 0.1).toFixed(2))
                 };
                 break;
             case 'filter':

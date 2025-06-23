@@ -195,7 +195,7 @@ class OscillatorModule extends AudioModule {
 class GainModule extends AudioModule {
     constructor(x, y, isCorrectAnswerModule = false) {
         super('gain', x, y, 'Gain ', isCorrectAnswerModule);
-        this.params = { gain: 0.5 };
+        this.params = { gain: 0.25 };
         this.initAudioNode();
         this.updateParams();
     }

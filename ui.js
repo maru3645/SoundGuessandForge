@@ -80,8 +80,12 @@ function renderParamEditor(module) {
 
     // イベントバインド（各モジュールごとに）
     if (module.type === 'oscillator') {        document.getElementById(`osc-type-${module.id}`).addEventListener('change', (e) => {
+            const wasPlaying = module.isPlaying; // 再生中だったか記憶
             module.params.type = e.target.value;
-            module.initAudioNode();
+            module.initAudioNode(); // ノードを再生成
+            if (wasPlaying) {
+                module.audioNode.start(0); // 再生中だったなら、新しいノードを開始
+            }
             reconnectAll();
         });
         document.getElementById(`osc-freq-${module.id}`).addEventListener('input', (e) => {

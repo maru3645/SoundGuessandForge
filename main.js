@@ -147,6 +147,11 @@ window.addEventListener('load', () => {
             const outputModule = createModule('output');
             globalOutputNode = outputModule;
             
+            // ビジュアライザを再接続
+            if (typeof initVisualizer === 'function') {
+                initVisualizer();
+            }
+            
             // 新しい正解を生成
             generateRandomCorrectAnswer();
             console.log('リセット後に新しい正解を生成しました。');

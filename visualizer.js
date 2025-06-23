@@ -19,14 +19,15 @@ function initVisualizer() {
         try {
             analyserNode.connect(audioContext.destination);
         } catch(e) { console.error("Error connecting analyser to destination", e); }
+    }
 
-        // Update the main output module to use the analyser as its audioNode
-        const mainOutputModule = modules.find(m => m.type === 'output' && !m.isCorrectAnswerModule);
-        if (mainOutputModule) {
-            mainOutputModule.audioNode = analyserNode;
-            // Re-apply connections to the output module, which now points to the analyser
-            reconnectAll(); 
-        }
+    // メインのOutputモジュールを探し、その出力先をanalyserNodeに差し替える
+    // この処理はanalyserNodeの存在チェックの外に移動し、いつでも実行できるようにする
+    const mainOutputModule = modules.find(m => m.type === 'output' && !m.isCorrectAnswerModule);
+    if (mainOutputModule && mainOutputModule.audioNode !== analyserNode) {
+        mainOutputModule.audioNode = analyserNode;
+        // 差し替えたので、Outputモジュールへの接続を再確立する
+        reconnectAll(); 
     }
 }
 
