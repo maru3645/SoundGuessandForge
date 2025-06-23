@@ -251,7 +251,7 @@ class GainModule extends AudioModule {
         this.params = { gain: 0.25 };
         this.initAudioNode();
         this.updateParams();
-        this.createParamInputNodeDOM('gain', '60%');
+        this.createParamInputNodeDOM('gain', '75%');
     }
     initAudioNode() {
         if (!audioContext) return;
@@ -542,6 +542,20 @@ class LFOModule extends AudioModule {
         this.isPlaying = false;
         this.initAudioNode();
         this.updateParams();
+    }
+
+    createOutputNodeDOM() {
+        const outputNodeDOM = document.createElement('div');
+        outputNodeDOM.className = 'io-node param-output-node';
+        outputNodeDOM.dataset.moduleId = this.id;
+        outputNodeDOM.dataset.nodeType = 'output';
+        this.domElement.appendChild(outputNodeDOM);
+        outputNodeDOM.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            if (this.isCorrectAnswerModule) return;
+            // LFO output is always for parameters
+            startDrawingLine(e, this.id, e.target, 'param');
+        });
     }
 
     initAudioNode() {

@@ -246,7 +246,7 @@ function updateConnectionsSVG() {
         const targetModule = getModuleById(conn.targetId);
         if (!sourceModule || !targetModule) return;
 
-        const sourceNodeEl = sourceModule.domElement.querySelector('.output-node');
+        const sourceNodeEl = sourceModule.domElement.querySelector('[data-node-type="output"]');
         let targetNodeEl;
 
         if (conn.param) {
