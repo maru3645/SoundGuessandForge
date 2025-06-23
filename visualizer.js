@@ -16,40 +16,18 @@ function initVisualizer() {
     if (!analyserNode) {
         analyserNode = audioContext.createAnalyser();
         analyserNode.fftSize = 2048;
-    }
-    // 出力ノードの前にアナライザを挿入
-    connectVisualizerNode();
-}
+        try {
+            analyserNode.connect(audioContext.destination);
+        } catch(e) { console.error("Error connecting analyser to destination", e); }
 
-function connectVisualizerNode() {
-    if (!audioContext || !analyserNode) return;
-    // OutputModuleの前段にアナライザを挟む
-    // 既存のoutput接続を一度切って、analyserNode→destinationにする
-    const outputModule = modules.find(m => m.type === 'output');
-    if (!outputModule) return;
-    // 既存の接続を調べて、outputModuleに接続しているモジュールを探す
-    modules.forEach(m => {
-        if (m !== outputModule) {
-            try {
-                m.audioNode && m.audioNode.disconnect && m.audioNode.disconnect(outputModule.audioNode);
-            } catch (e) {}
+        // Update the main output module to use the analyser as its audioNode
+        const mainOutputModule = modules.find(m => m.type === 'output' && !m.isCorrectAnswerModule);
+        if (mainOutputModule) {
+            mainOutputModule.audioNode = analyserNode;
+            // Re-apply connections to the output module, which now points to the analyser
+            reconnectAll(); 
         }
-    });
-    // analyserNodeをdestinationに接続
-    try {
-        analyserNode.disconnect();
-    } catch (e) {}
-    try {
-        analyserNode.connect(audioContext.destination);
-    } catch (e) {}
-    // outputModule.audioNodeをanalyserNodeに
-    modules.forEach(m => {
-        if (m !== outputModule) {
-            try {
-                m.audioNode && m.audioNode.connect && m.audioNode.connect(analyserNode);
-            } catch (e) {}
-        }
-    });
+    }
 }
 
 function startVisualizer() {

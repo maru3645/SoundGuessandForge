@@ -35,11 +35,11 @@ class AudioModule {
                 this.domElement.style.cursor = 'grabbing';
                 this.domElement.style.zIndex = 1000;
             });
-            this.domElement.addEventListener('click', (e) => {
-                if (e.target.classList.contains('io-node')) return;
-                selectModule(this);
-            });
         }
+        this.domElement.addEventListener('click', (e) => {
+            if (e.target.classList.contains('io-node')) return;
+            selectModule(this);
+        });
         this.createInputNodeDOM();
         this.createOutputNodeDOM();
         // workspace.appendChild(this.domElement); // ←削除
@@ -85,32 +85,24 @@ class AudioModule {
         });
     }
     connectTo(targetModule) {
-        if (!audioContext || !this.audioNode) return false;
-        if (targetModule.type === 'output') {
-            if (audioContext.destination) {
-                try {
-                    this.audioNode.connect(audioContext.destination);
-                    return true;
-                } catch (e) { return false; }
-            } else { return false; }
-        } else if (targetModule.audioNode instanceof AudioNode) {
+        if (!audioContext || !this.audioNode || !targetModule || !targetModule.audioNode) return false;
+        
+        if (targetModule.audioNode instanceof AudioNode) {
             try {
                 this.audioNode.connect(targetModule.audioNode);
                 return true;
-            } catch (e) { return false; }
-        } else {
-            return false;
+            } catch (e) { 
+                console.error(`Failed to connect ${this.name} to ${targetModule.name}`, e);
+                return false; 
+            }
         }
+        return false;
     }
     disconnectFrom(targetModule) {
-        if (!this.audioNode) return;
+        if (!this.audioNode || !targetModule || !targetModule.audioNode) return;
         try {
             if (this.audioNode.disconnect && typeof this.audioNode.disconnect === 'function') {
-                if (targetModule.type === 'output' && audioContext && audioContext.destination) {
-                    this.audioNode.disconnect(audioContext.destination);
-                } else if (targetModule.audioNode instanceof AudioNode) {
-                    this.audioNode.disconnect(targetModule.audioNode);
-                }
+                this.audioNode.disconnect(targetModule.audioNode);
             }
         } catch (error) {}
     }

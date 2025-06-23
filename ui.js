@@ -45,15 +45,11 @@ function createModule(type, x, y, isCorrectAnswerModule = false) {
 
 function selectModule(module) {
     if (selectedModule && selectedModule.domElement) {
-        selectedModule.domElement.style.borderColor = '#ccc';
+        selectedModule.domElement.classList.remove('selected');
     }
     selectedModule = module;
     if (selectedModule && selectedModule.domElement) {
-        if (selectedModule.isCorrectAnswerModule) {
-            clearParamEditor();
-            return;
-        }
-        selectedModule.domElement.style.borderColor = '#3498db';
+        selectedModule.domElement.classList.add('selected');
         renderParamEditor(module);
     } else {
         clearParamEditor();
@@ -177,7 +173,7 @@ function stopDrawingLine() {
     lineStartNodeInfo = null;
 }
 
-function connectModules(sourceModule, targetModule) {
+function connectModules(sourceModule, targetModule, visualOnly = false) {
     if (!sourceModule || !targetModule || sourceModule === targetModule) return;
     if (connections.some(c => c.sourceId === sourceModule.id && c.targetId === targetModule.id)) return;
     if (targetModule.type === 'oscillator') return; // Oscillator has no input
@@ -187,7 +183,9 @@ function connectModules(sourceModule, targetModule) {
         targetId: targetModule.id,
     };
     connections.push(connection);
-    sourceModule.connectTo(targetModule);
+    if (!visualOnly) {
+        sourceModule.connectTo(targetModule);
+    }
     updateConnectionsSVG();
 }
 
@@ -251,23 +249,21 @@ function updateConnectionsSVG() {
 }
 
 function reconnectAll() {
-    // Disconnect all audio nodes first to avoid issues
-    modules.forEach(m => {
-        if (m.audioNode && m.audioNode.disconnect) {
-            try { m.audioNode.disconnect(); } catch(e) {}
-        }
-        // Special handling for DelayModule feedback loop
-        if (m.type === 'delay' && m.feedbackGain) {
-            try { m.audioNode.disconnect(m.feedbackGain); } catch(e) {}
-        }
-    });
-
-    // Re-establish connections based on the `connections` array
+    // 現在の接続情報に基づいて、オーディオ接続のみを再設定する
+    // 以前の実装は、analyserNodeからdestinationへの接続など、
+    // `connections`配列で管理されていない接続まで切断してしまっていた。
     connections.forEach(conn => {
         const sourceModule = getModuleById(conn.sourceId);
         const targetModule = getModuleById(conn.targetId);
-        if (sourceModule && targetModule) {
-            sourceModule.connectTo(targetModule);
+        
+        // 正解表示用のモジュールは音声接続を行わない
+        if (sourceModule && targetModule && !sourceModule.isCorrectAnswerModule && !targetModule.isCorrectAnswerModule) {
+            try {
+                sourceModule.disconnectFrom(targetModule);
+            } catch(e) {}
+            try {
+                sourceModule.connectTo(targetModule);
+            } catch(e) {}
         }
     });
 }

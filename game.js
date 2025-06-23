@@ -60,11 +60,13 @@ function playCorrectAnswer() {
         console.error("正解を再生できません: オーディオコンテキストまたは設定がありません。");
         return;
     }
-    // --- ここから追加 ---
-    if (typeof initVisualizer === 'function') initVisualizer();
+    // initVisualizerはメインのオーディオ開始時に一度だけ呼ぶべきなので、ここでは呼ばない。
     if (typeof startVisualizer === 'function') startVisualizer();
-    // --- ここまで追加 ---
+
     try {
+        // ビジュアライザが有効ならそちらへ、なければ直接destinationへ接続
+        const finalDestination = analyserNode || audioContext.destination;
+
         correctAnswer.modulesConfig.forEach(moduleConfig => {
             let currentNode = null;
             let inputNode = null; // Delayのような内部ルーティングを持つモジュール用
@@ -120,7 +122,7 @@ function playCorrectAnswer() {
             }
         });
         if (lastConnectedNode) {
-            lastConnectedNode.connect(audioContext.destination);
+            lastConnectedNode.connect(finalDestination);
         }
         setTimeout(() => {
             tempAudioNodes.forEach(item => {
@@ -190,10 +192,12 @@ function checkAnswer() {
     const correctOutputModule = createModule('output', startX + correctModulesConfig.length * (moduleWidth + moduleSpacing), startY, true);
     
     for (let i = 0; i < correctAnswerModules.length - 1; i++) {
-        connectModules(correctAnswerModules[i], correctAnswerModules[i + 1]);
+        // visualOnlyをtrueにして、音声接続を行わないようにする
+        connectModules(correctAnswerModules[i], correctAnswerModules[i + 1], true);
     }
     if (correctAnswerModules.length > 0) {
-        connectModules(correctAnswerModules[correctAnswerModules.length - 1], correctOutputModule);
+        // visualOnlyをtrueにして、音声接続を行わないようにする
+        connectModules(correctAnswerModules[correctAnswerModules.length - 1], correctOutputModule, true);
     }
     updateConnectionsSVG();
     // --- 表示完了 ---
