@@ -17,6 +17,7 @@ function createModule(type, x, y, isCorrectAnswerModule = false) {
         case 'gain': newModule = new GainModule(x, y, isCorrectAnswerModule); break;
         case 'filter': newModule = new FilterModule(x, y, isCorrectAnswerModule); break;
         case 'delay': newModule = new DelayModule(x, y, isCorrectAnswerModule); break;
+        case 'reverb': newModule = new ReverbModule(x, y, isCorrectAnswerModule); break;
         case 'output': newModule = new OutputModule(x, y, isCorrectAnswerModule); break;
         default: return;
     }
@@ -123,6 +124,17 @@ function renderParamEditor(module) {
         document.getElementById(`delay-feedback-${module.id}`).addEventListener('input', (e) => {
             module.params.feedback = parseFloat(e.target.value);
             document.getElementById(`delay-feedback-val-${module.id}`).textContent = module.params.feedback.toFixed(2);
+            module.updateParams();
+        });
+    } else if (module.type === 'reverb') {
+        document.getElementById(`reverb-mix-${module.id}`).addEventListener('input', (e) => {
+            module.params.mix = parseFloat(e.target.value);
+            document.getElementById(`reverb-mix-val-${module.id}`).textContent = module.params.mix.toFixed(2);
+            module.updateParams();
+        });
+        document.getElementById(`reverb-time-${module.id}`).addEventListener('input', (e) => {
+            module.params.time = parseFloat(e.target.value);
+            document.getElementById(`reverb-time-val-${module.id}`).textContent = module.params.time.toFixed(2);
             module.updateParams();
         });
     }

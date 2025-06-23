@@ -16,6 +16,8 @@ function generateRandomCorrectAnswer() {
     moduleOrder.push('gain');
     // 4. Delay を確率で追加 (70%の確率)
     if (Math.random() < 0.7) moduleOrder.push('delay');
+    // 5. Reverb を確率で追加 (60%の確率)
+    if (Math.random() < 0.6) moduleOrder.push('reverb');
 
     moduleOrder.forEach(type => {
         let params = {};
@@ -45,6 +47,12 @@ function generateRandomCorrectAnswer() {
                 params = {
                     delayTime: parseFloat((Math.random() * (0.9 - 0.05) + 0.05).toFixed(3)),
                     feedback: parseFloat((Math.random() * (0.75 - 0.05) + 0.05).toFixed(2))
+                };
+                break;
+            case 'reverb':
+                params = {
+                    mix: parseFloat((Math.random() * (0.6 - 0.1) + 0.1).toFixed(2)),
+                    time: parseFloat((Math.random() * (3.0 - 0.5) + 0.5).toFixed(2))
                 };
                 break;
         }
@@ -110,6 +118,45 @@ function playCorrectAnswer() {
                     gain.gain.setValueAtTime(moduleConfig.params.gain, audioContext.currentTime);
                     currentNode = gain;
                     inputNode = gain;
+                    break;
+                case 'reverb':
+                    const reverbInput = audioContext.createGain();
+                    const reverbWet = audioContext.createGain();
+                    const reverbDry = audioContext.createGain();
+                    const reverbConvolver = audioContext.createConvolver();
+                    const reverbOutput = audioContext.createGain();
+
+                    const rate = audioContext.sampleRate;
+                    const time = moduleConfig.params.time;
+                    const length = Math.max(1, rate * time);
+                    const impulse = audioContext.createBuffer(2, length, rate);
+                    const impulseL = impulse.getChannelData(0);
+                    const impulseR = impulse.getChannelData(1);
+                    const decay = time > 0 ? Math.max(1, time) : 1;
+                    for (let i = 0; i < length; i++) {
+                        const n = length - i;
+                        impulseL[i] = (Math.random() * 2 - 1) * Math.pow(n / length, decay);
+                        impulseR[i] = (Math.random() * 2 - 1) * Math.pow(n / length, decay);
+                    }
+                    reverbConvolver.buffer = impulse;
+
+                    const mix = moduleConfig.params.mix;
+                    reverbDry.gain.setValueAtTime(1 - mix, audioContext.currentTime);
+                    reverbWet.gain.setValueAtTime(mix, audioContext.currentTime);
+
+                    reverbInput.connect(reverbDry);
+                    reverbDry.connect(reverbOutput);
+                    reverbInput.connect(reverbConvolver);
+                    reverbConvolver.connect(reverbWet);
+                    reverbWet.connect(reverbOutput);
+                    
+                    currentNode = reverbOutput;
+                    inputNode = reverbInput;
+                    
+                    tempAudioNodes.push({type: 'reverb_wet', node: reverbWet});
+                    tempAudioNodes.push({type: 'reverb_dry', node: reverbDry});
+                    tempAudioNodes.push({type: 'reverb_convolver', node: reverbConvolver});
+                    tempAudioNodes.push({type: 'reverb_input', node: reverbInput});
                     break;
             }
 

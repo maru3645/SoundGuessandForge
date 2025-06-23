@@ -341,6 +341,121 @@ class DelayModule extends AudioModule {
     }
 }
 
+class ReverbModule extends AudioModule {
+    constructor(x, y, isCorrectAnswerModule = false) {
+        super('reverb', x, y, 'Reverb ', isCorrectAnswerModule);
+        this.params = { mix: 0.5, time: 1.5 };
+        
+        this.wetGain = null;
+        this.dryGain = null;
+        this.convolver = null;
+        this.outputMix = null; // This will be the actual output node
+
+        this.initAudioNode();
+        this.updateParams();
+    }
+
+    initAudioNode() {
+        if (!audioContext) return;
+        if (this.audioNode) { try { this.audioNode.disconnect(); } catch(e) {} }
+        if (this.wetGain) { try { this.wetGain.disconnect(); } catch(e) {} }
+        if (this.dryGain) { try { this.dryGain.disconnect(); } catch(e) {} }
+        if (this.convolver) { try { this.convolver.disconnect(); } catch(e) {} }
+        if (this.outputMix) { try { this.outputMix.disconnect(); } catch(e) {} }
+
+        this.audioNode = audioContext.createGain();
+        this.wetGain = audioContext.createGain();
+        this.dryGain = audioContext.createGain();
+        this.convolver = audioContext.createConvolver();
+        this.outputMix = audioContext.createGain();
+
+        this.audioNode.connect(this.dryGain);
+        this.dryGain.connect(this.outputMix);
+        this.audioNode.connect(this.convolver);
+        this.convolver.connect(this.wetGain);
+        this.wetGain.connect(this.outputMix);
+
+        this.buildImpulse();
+    }
+
+    buildImpulse() {
+        if (!audioContext || !this.convolver) return;
+        const rate = audioContext.sampleRate;
+        const length = Math.max(1, rate * this.params.time);
+        const impulse = audioContext.createBuffer(2, length, rate);
+        const impulseL = impulse.getChannelData(0);
+        const impulseR = impulse.getChannelData(1);
+        const decay = this.params.time > 0 ? Math.max(1, this.params.time) : 1;
+
+        for (let i = 0; i < length; i++) {
+            const n = length - i;
+            impulseL[i] = (Math.random() * 2 - 1) * Math.pow(n / length, decay);
+            impulseR[i] = (Math.random() * 2 - 1) * Math.pow(n / length, decay);
+        }
+        this.convolver.buffer = impulse;
+    }
+
+    updateParams() {
+        if (!audioContext || !this.wetGain || !this.dryGain) return;
+        this.dryGain.gain.setValueAtTime(1 - this.params.mix, audioContext.currentTime);
+        this.wetGain.gain.setValueAtTime(this.params.mix, audioContext.currentTime);
+        this.buildImpulse();
+    }
+
+    getEditorHTML() {
+        if (this.isCorrectAnswerModule) {
+            return `
+                <div class="mb-2"><label class="param-label">Mix: ${this.params.mix.toFixed(2)}</label></div>
+                <div class="mb-2"><label class="param-label">Time: ${this.params.time.toFixed(2)} s</label></div>
+            `;
+        }
+        return `
+            <div class="mb-2">
+                <label class="param-label">Mix (Wet): <span id="reverb-mix-val-${this.id}">${this.params.mix.toFixed(2)}</span>
+                    <input type="range" id="reverb-mix-${this.id}" class="param-slider" min="0" max="1" step="0.01" value="${this.params.mix}">
+                </label>
+            </div>
+            <div class="mb-2">
+                <label class="param-label">Time: <span id="reverb-time-val-${this.id}">${this.params.time.toFixed(2)}</span> s
+                    <input type="range" id="reverb-time-${this.id}" class="param-slider" min="0.1" max="4" step="0.1" value="${this.params.time}">
+                </label>
+            </div>
+        `;
+    }
+
+    connectTo(targetModule) {
+        if (!this.outputMix || !targetModule || !targetModule.audioNode) return false;
+        if (targetModule.audioNode instanceof AudioNode) {
+            try {
+                this.outputMix.connect(targetModule.audioNode);
+                return true;
+            } catch (e) { 
+                console.error(`Failed to connect ${this.name} to ${targetModule.name}`, e);
+                return false; 
+            }
+        }
+        return false;
+    }
+
+    disconnectFrom(targetModule) {
+        if (!this.outputMix || !targetModule || !targetModule.audioNode) return;
+        try {
+            if (this.outputMix.disconnect && typeof this.outputMix.disconnect === 'function') {
+                this.outputMix.disconnect(targetModule.audioNode);
+            }
+        } catch (error) {}
+    }
+    
+    destroy() {
+        if (this.audioNode) { try { this.audioNode.disconnect(); } catch(e) {} }
+        if (this.wetGain) { try { this.wetGain.disconnect(); } catch(e) {} }
+        if (this.dryGain) { try { this.dryGain.disconnect(); } catch(e) {} }
+        if (this.convolver) { try { this.convolver.disconnect(); } catch(e) {} }
+        if (this.outputMix) { try { this.outputMix.disconnect(); } catch(e) {} }
+        super.destroy();
+    }
+}
+
 class OutputModule extends AudioModule {
     constructor(x,y, isCorrectAnswerModule = false) {
         super('output', x, y, 'Output ', isCorrectAnswerModule);
