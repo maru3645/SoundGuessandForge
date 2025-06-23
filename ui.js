@@ -18,6 +18,7 @@ function createModule(type, x, y, isCorrectAnswerModule = false) {
         case 'filter': newModule = new FilterModule(x, y, isCorrectAnswerModule); break;
         case 'delay': newModule = new DelayModule(x, y, isCorrectAnswerModule); break;
         case 'reverb': newModule = new ReverbModule(x, y, isCorrectAnswerModule); break;
+        case 'lfo': newModule = new LFOModule(x, y, isCorrectAnswerModule); break;
         case 'output': newModule = new OutputModule(x, y, isCorrectAnswerModule); break;
         default: return;
     }
@@ -141,6 +142,21 @@ function renderParamEditor(module) {
             document.getElementById(`reverb-time-val-${module.id}`).textContent = module.params.time.toFixed(2);
             module.updateParams();
         });
+    } else if (module.type === 'lfo') {
+        document.getElementById(`lfo-type-${module.id}`).addEventListener('change', (e) => {
+            module.params.type = e.target.value;
+            module.updateParams();
+        });
+        document.getElementById(`lfo-freq-${module.id}`).addEventListener('input', (e) => {
+            module.params.frequency = parseFloat(e.target.value);
+            document.getElementById(`lfo-freq-val-${module.id}`).textContent = module.params.frequency;
+            module.updateParams();
+        });
+        document.getElementById(`lfo-amount-${module.id}`).addEventListener('input', (e) => {
+            module.params.amount = parseFloat(e.target.value);
+            document.getElementById(`lfo-amount-val-${module.id}`).textContent = module.params.amount;
+            module.updateParams();
+        });
     }
     const deleteButton = document.createElement('button');
     deleteButton.textContent = 'モジュール削除';
@@ -158,7 +174,7 @@ function getModuleById(id) {
     return modules.find(m => m.id === parseInt(id));
 }
 
-function startDrawingLine(e, sourceModuleId, sourceNodeElement) {
+function startDrawingLine(e, sourceModuleId, sourceNodeElement, connectionType) {
     e.stopPropagation();
     const sourceModule = getModuleById(sourceModuleId);
     if (!sourceModule) return;
@@ -172,12 +188,14 @@ function startDrawingLine(e, sourceModuleId, sourceNodeElement) {
     drawingLine.setAttribute('y1', startY);
     drawingLine.setAttribute('x2', e.clientX - workspaceRect.left);
     drawingLine.setAttribute('y2', e.clientY - workspaceRect.top);
-    drawingLine.setAttribute('class', 'connection-line');
+    const lineClass = connectionType === 'param' ? 'connection-line-param' : 'connection-line';
+    drawingLine.setAttribute('class', lineClass);
     connectionsSvg.appendChild(drawingLine);
 
     lineStartNodeInfo = {
         sourceModuleId: sourceModuleId,
-        sourceNodeElement: sourceNodeElement
+        sourceNodeElement: sourceNodeElement,
+        connectionType: connectionType
     };
 }
 
@@ -189,29 +207,31 @@ function stopDrawingLine() {
     lineStartNodeInfo = null;
 }
 
-function connectModules(sourceModule, targetModule, visualOnly = false) {
+function connectModules(sourceModule, targetModule, paramName = null, visualOnly = false) {
     if (!sourceModule || !targetModule || sourceModule === targetModule) return;
-    if (connections.some(c => c.sourceId === sourceModule.id && c.targetId === targetModule.id)) return;
-    if (targetModule.type === 'oscillator') return; // Oscillator has no input
+    // Prevent duplicate connections
+    if (connections.some(c => c.sourceId === sourceModule.id && c.targetId === targetModule.id && c.param === paramName)) return;
+    if (paramName === null && (targetModule.type === 'oscillator' || targetModule.type === 'lfo')) return; // Oscillator/LFO has no audio input
 
     const connection = {
         sourceId: sourceModule.id,
         targetId: targetModule.id,
+        param: paramName,
     };
     connections.push(connection);
     if (!visualOnly) {
-        sourceModule.connectTo(targetModule);
+        sourceModule.connectTo(targetModule, paramName);
     }
     updateConnectionsSVG();
 }
 
-function disconnectModules(sourceId, targetId) {
-    const connIndex = connections.findIndex(c => c.sourceId === sourceId && c.targetId === targetId);
+function disconnectModules(sourceId, targetId, paramName = null) {
+    const connIndex = connections.findIndex(c => c.sourceId === sourceId && c.targetId === targetId && c.param === paramName);
     if (connIndex > -1) {
         const sourceModule = getModuleById(sourceId);
         const targetModule = getModuleById(targetId);
         if (sourceModule && targetModule) {
-            sourceModule.disconnectFrom(targetModule);
+            sourceModule.disconnectFrom(targetModule, paramName);
         }
         connections.splice(connIndex, 1);
         updateConnectionsSVG();
@@ -227,7 +247,16 @@ function updateConnectionsSVG() {
         if (!sourceModule || !targetModule) return;
 
         const sourceNodeEl = sourceModule.domElement.querySelector('.output-node');
-        const targetNodeEl = targetModule.domElement.querySelector('.input-node');
+        let targetNodeEl;
+
+        if (conn.param) {
+            // Parameter connection
+            targetNodeEl = targetModule.domElement.querySelector(`.param-input-node[data-param-name="${conn.param}"]`);
+        } else {
+            // Audio connection
+            targetNodeEl = targetModule.domElement.querySelector('.input-node');
+        }
+        
         if (!sourceNodeEl || !targetNodeEl) return;
 
         const workspaceRect = workspace.getBoundingClientRect();
@@ -244,20 +273,26 @@ function updateConnectionsSVG() {
         line.setAttribute('y1', y1);
         line.setAttribute('x2', x2);
         line.setAttribute('y2', y2);
-        line.setAttribute('class', 'connection-line');
+        
+        const lineClass = conn.param ? 'connection-line-param' : 'connection-line';
+        line.setAttribute('class', lineClass);
+        
         line.dataset.sourceId = conn.sourceId;
         line.dataset.targetId = conn.targetId;
+        if (conn.param) {
+            line.dataset.param = conn.param;
+        }
 
         line.addEventListener('click', (e) => {
             e.stopPropagation();
             if (confirm('この接続を削除しますか？')) {
-                disconnectModules(conn.sourceId, conn.targetId);
+                disconnectModules(conn.sourceId, conn.targetId, conn.param);
             }
         });
         // ダブルクリックで即削除
         line.addEventListener('dblclick', (e) => {
             e.stopPropagation();
-            disconnectModules(conn.sourceId, conn.targetId);
+            disconnectModules(conn.sourceId, conn.targetId, conn.param);
         });
 
         connectionsSvg.appendChild(line);
@@ -275,10 +310,10 @@ function reconnectAll() {
         // 正解表示用のモジュールは音声接続を行わない
         if (sourceModule && targetModule && !sourceModule.isCorrectAnswerModule && !targetModule.isCorrectAnswerModule) {
             try {
-                sourceModule.disconnectFrom(targetModule);
+                sourceModule.disconnectFrom(targetModule, conn.param);
             } catch(e) {}
             try {
-                sourceModule.connectTo(targetModule);
+                sourceModule.connectTo(targetModule, conn.param);
             } catch(e) {}
         }
     });

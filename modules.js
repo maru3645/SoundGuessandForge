@@ -42,14 +42,12 @@ class AudioModule {
         });
         this.createInputNodeDOM();
         this.createOutputNodeDOM();
-        // workspace.appendChild(this.domElement); // ←削除
-        // modules.push(this); // ←削除
     }
     initAudioNode() {}
     getEditorHTML() { return ''; }
     updateParams() {}
     createInputNodeDOM() {
-        if (this.type === 'oscillator') return; // Oscillator has no input
+        if (this.type === 'oscillator' || this.type === 'lfo') return; // Oscillator/LFO has no audio input
 
         const inputNodeDOM = document.createElement('div');
         inputNodeDOM.className = 'io-node input-node';
@@ -60,16 +58,39 @@ class AudioModule {
         inputNodeDOM.addEventListener('mouseup', (e) => {
             e.stopPropagation();
             if (this.isCorrectAnswerModule) return;
-            if (drawingLine && lineStartNodeInfo) {
+            if (drawingLine && lineStartNodeInfo && lineStartNodeInfo.connectionType === 'audio') {
                 const sourceModule = getModuleById(lineStartNodeInfo.sourceModuleId);
                 const targetModule = getModuleById(this.id);
                 if (sourceModule && targetModule) {
-                    connectModules(sourceModule, targetModule);
+                    connectModules(sourceModule, targetModule, null);
                 }
-                stopDrawingLine();
             }
+            stopDrawingLine();
         });
     }
+
+    createParamInputNodeDOM(paramName, topPosition) {
+        const paramNodeDOM = document.createElement('div');
+        paramNodeDOM.className = 'io-node param-input-node';
+        paramNodeDOM.style.top = topPosition;
+        paramNodeDOM.dataset.moduleId = this.id;
+        paramNodeDOM.dataset.paramName = paramName;
+        this.domElement.appendChild(paramNodeDOM);
+        paramNodeDOM.addEventListener('mousedown', (e) => e.stopPropagation());
+        paramNodeDOM.addEventListener('mouseup', (e) => {
+            e.stopPropagation();
+            if (this.isCorrectAnswerModule) return;
+            if (drawingLine && lineStartNodeInfo && lineStartNodeInfo.connectionType === 'param') {
+                const sourceModule = getModuleById(lineStartNodeInfo.sourceModuleId);
+                const targetModule = getModuleById(this.id);
+                if (sourceModule && targetModule) {
+                    connectModules(sourceModule, targetModule, paramName);
+                }
+            }
+            stopDrawingLine();
+        });
+    }
+
     createOutputNodeDOM() {
         if (this.type === 'output') return; // Output has no output node
 
@@ -81,44 +102,69 @@ class AudioModule {
         outputNodeDOM.addEventListener('mousedown', (e) => {
             e.stopPropagation();
             if (this.isCorrectAnswerModule) return;
-            startDrawingLine(e, this.id, e.target);
+            const connectionType = this.type === 'lfo' ? 'param' : 'audio';
+            startDrawingLine(e, this.id, e.target, connectionType);
         });
     }
-    connectTo(targetModule) {
-        if (!audioContext || !this.audioNode || !targetModule || !targetModule.audioNode) return false;
+    connectTo(targetModule, targetParam = null) {
+        if (!audioContext || !this.audioNode || !targetModule) return false;
         
-        if (targetModule.audioNode instanceof AudioNode) {
-            try {
-                this.audioNode.connect(targetModule.audioNode);
-                return true;
-            } catch (e) { 
-                console.error(`Failed to connect ${this.name} to ${targetModule.name}`, e);
-                return false; 
+        if (targetParam) { // Parameter connection
+            const targetAudioParam = targetModule.getAudioParam(targetParam);
+            if (targetAudioParam instanceof AudioParam) {
+                try {
+                    this.audioNode.connect(targetAudioParam);
+                    return true;
+                } catch (e) { console.error(`Failed to connect ${this.name} to ${targetModule.name}.${targetParam}`, e); return false; }
+            }
+        } else { // Audio connection
+            if (targetModule.audioNode instanceof AudioNode) {
+                try {
+                    this.audioNode.connect(targetModule.audioNode);
+                    return true;
+                } catch (e) { console.error(`Failed to connect ${this.name} to ${targetModule.name}`, e); return false; }
             }
         }
         return false;
     }
-    disconnectFrom(targetModule) {
-        if (!this.audioNode || !targetModule || !targetModule.audioNode) return;
+    disconnectFrom(targetModule, targetParam = null) {
+        if (!this.audioNode || !targetModule) return;
         try {
-            if (this.audioNode.disconnect && typeof this.audioNode.disconnect === 'function') {
-                this.audioNode.disconnect(targetModule.audioNode);
+            if (targetParam) {
+                const targetAudioParam = targetModule.audioNode[targetParam];
+                if (targetAudioParam instanceof AudioParam) {
+                    this.audioNode.disconnect(targetAudioParam);
+                }
+            } else if (targetModule.audioNode) {
+                if (this.audioNode.disconnect && typeof this.audioNode.disconnect === 'function') {
+                    this.audioNode.disconnect(targetModule.audioNode);
+                }
             }
         } catch (error) {}
     }
     destroy() {
-        this.connections.forEach(connInfo => {
-            const target = modules.find(m => m.id === connInfo.targetId);
-            if (target) this.disconnectFrom(target);
+        // Disconnect all connections related to this module
+        connections = connections.filter(c => {
+            if (c.sourceId === this.id) {
+                const target = getModuleById(c.targetId);
+                if (target) this.disconnectFrom(target, c.param);
+                return false; // remove connection
+            }
+            if (c.targetId === this.id) {
+                const source = getModuleById(c.sourceId);
+                if (source) source.disconnectFrom(this, c.param);
+                return false; // remove connection
+            }
+            return true; // keep connection
         });
-        connections.filter(c => c.targetId === this.id).forEach(connToThis => {
-            const source = modules.find(m => m.id === connToThis.sourceId);
-            if (source) source.disconnectFrom(this);
-        });
-        connections = connections.filter(c => c.sourceId !== this.id && c.targetId !== this.id);
+
         if (this.audioNode) {
             if (this.type === 'oscillator' && this.audioNode.stop) {
                 try { if(this.isPlaying) this.audioNode.stop(); } catch (e) {}
+            }
+            // LFOは常に再生されているため、destroy時にstopしない
+            if (this.type === 'lfo' && this.lfoNode && this.lfoNode.stop) {
+                 try { if(this.isPlaying) this.lfoNode.stop(); } catch (e) {}
             }
             try { this.audioNode.disconnect(); } catch (e) {}
         }
@@ -132,6 +178,12 @@ class AudioModule {
         }
         updateConnectionsSVG();
     }
+    getAudioParam(paramName) {
+        if (this.audioNode && this.audioNode[paramName] instanceof AudioParam) {
+            return this.audioNode[paramName];
+        }
+        return null;
+    }
 }
 
 class OscillatorModule extends AudioModule {
@@ -141,6 +193,7 @@ class OscillatorModule extends AudioModule {
         this.isPlaying = false;
         this.initAudioNode();
         this.updateParams();
+        this.createParamInputNodeDOM('frequency', '75%');
     }
     initAudioNode() {
         if (!audioContext) return;
@@ -198,6 +251,7 @@ class GainModule extends AudioModule {
         this.params = { gain: 0.25 };
         this.initAudioNode();
         this.updateParams();
+        this.createParamInputNodeDOM('gain', '60%');
     }
     initAudioNode() {
         if (!audioContext) return;
@@ -229,6 +283,7 @@ class FilterModule extends AudioModule {
         this.params = { type: 'lowpass', frequency: 350, q: 1 };
         this.initAudioNode();
         this.updateParams();
+        this.createParamInputNodeDOM('frequency', '75%');
     }
     initAudioNode() {
         if (!audioContext) return;
@@ -285,6 +340,7 @@ class DelayModule extends AudioModule {
         this.feedbackNode = null;
         this.initAudioNode();
         this.updateParams();
+        this.createParamInputNodeDOM('delayTime', '75%');
     }
     initAudioNode() {
         if (!audioContext) return;
@@ -324,9 +380,9 @@ class DelayModule extends AudioModule {
         this.audioNode.delayTime.value = this.params.delayTime;
         this.feedbackNode.gain.value = this.params.feedback;
     }
-    connectTo(targetModule) {
+    connectTo(targetModule, targetParam = null) {
         if (!this.audioNode) return false;
-        return super.connectTo(targetModule);
+        return super.connectTo(targetModule, targetParam);
     }
     connectInput(sourceModuleAudioNode) {
         if (!this.audioNode || !sourceModuleAudioNode) return false;
@@ -353,6 +409,7 @@ class ReverbModule extends AudioModule {
 
         this.initAudioNode();
         this.updateParams();
+        this.createParamInputNodeDOM('mix', '75%');
     }
 
     initAudioNode() {
@@ -423,8 +480,11 @@ class ReverbModule extends AudioModule {
         `;
     }
 
-    connectTo(targetModule) {
+    connectTo(targetModule, targetParam = null) {
         if (!this.outputMix || !targetModule || !targetModule.audioNode) return false;
+        // Reverb can only connect to audio inputs, not params.
+        if (targetParam) return false;
+
         if (targetModule.audioNode instanceof AudioNode) {
             try {
                 this.outputMix.connect(targetModule.audioNode);
@@ -437,8 +497,9 @@ class ReverbModule extends AudioModule {
         return false;
     }
 
-    disconnectFrom(targetModule) {
+    disconnectFrom(targetModule, targetParam = null) {
         if (!this.outputMix || !targetModule || !targetModule.audioNode) return;
+        if (targetParam) return;
         try {
             if (this.outputMix.disconnect && typeof this.outputMix.disconnect === 'function') {
                 this.outputMix.disconnect(targetModule.audioNode);
@@ -452,6 +513,98 @@ class ReverbModule extends AudioModule {
         if (this.dryGain) { try { this.dryGain.disconnect(); } catch(e) {} }
         if (this.convolver) { try { this.convolver.disconnect(); } catch(e) {} }
         if (this.outputMix) { try { this.outputMix.disconnect(); } catch(e) {} }
+        super.destroy();
+    }
+
+    getAudioParam(paramName) {
+        if (paramName === 'mix') {
+            // LFOでwetGainを直接コントロールすることでmixを擬似的に変化させます
+            return this.wetGain.gain;
+        }
+        return super.getAudioParam(paramName);
+    }
+}
+
+class LFOModule extends AudioModule {
+    constructor(x, y, isCorrectAnswerModule = false) {
+        super('lfo', x, y, 'LFO ', isCorrectAnswerModule);
+        this.params = { type: 'sine', frequency: 5, amount: 100 };
+        this.lfoNode = null; // The actual oscillator
+        this.isPlaying = false;
+        this.initAudioNode();
+        this.updateParams();
+    }
+
+    initAudioNode() {
+        if (!audioContext) return;
+        if (this.lfoNode) {
+            try { if(this.isPlaying) this.lfoNode.stop(); } catch(e) {}
+            try { this.lfoNode.disconnect(); } catch(e) {}
+        }
+        if (this.audioNode) { // audioNode is the Gain (amount)
+            try { this.audioNode.disconnect(); } catch(e) {}
+        }
+
+        this.lfoNode = audioContext.createOscillator();
+        this.audioNode = audioContext.createGain(); // This is the output node
+
+        this.lfoNode.connect(this.audioNode);
+        this.lfoNode.type = this.params.type;
+        this.lfoNode.frequency.setValueAtTime(this.params.frequency, audioContext.currentTime);
+        this.audioNode.gain.setValueAtTime(this.params.amount, audioContext.currentTime);
+        
+        this.lfoNode.start(0);
+        this.isPlaying = true;
+    }
+
+    getEditorHTML() {
+        if (this.isCorrectAnswerModule) {
+            return `
+                <div class="mb-2"><label class="param-label">Type: ${this.params.type}</label></div>
+                <div class="mb-2"><label class="param-label">Frequency: ${this.params.frequency} Hz</label></div>
+                <div class="mb-2"><label class="param-label">Amount: ${this.params.amount}</label></div>
+            `;
+        }
+        return `
+            <div class="mb-2">
+                <label class="param-label">Type:
+                    <select id="lfo-type-${this.id}" class="custom-select">
+                        <option value="sine">sine</option>
+                        <option value="square">square</option>
+                        <option value="sawtooth">sawtooth</option>
+                        <option value="triangle">triangle</option>
+                    </select>
+                </label>
+            </div>
+            <div class="mb-2">
+                <label class="param-label">Frequency: <span id="lfo-freq-val-${this.id}">${this.params.frequency}</span> Hz
+                    <input type="range" id="lfo-freq-${this.id}" class="param-slider" min="0.1" max="20" step="0.1" value="${this.params.frequency}">
+                </label>
+            </div>
+            <div class="mb-2">
+                <label class="param-label">Amount: <span id="lfo-amount-val-${this.id}">${this.params.amount}</span>
+                    <input type="range" id="lfo-amount-${this.id}" class="param-slider" min="0" max="1000" step="1" value="${this.params.amount}">
+                </label>
+            </div>
+        `;
+    }
+
+    updateParams() {
+        if (!this.lfoNode || !this.audioNode || !audioContext) return;
+        this.lfoNode.type = this.params.type;
+        this.lfoNode.frequency.setValueAtTime(this.params.frequency, audioContext.currentTime);
+        this.audioNode.gain.setValueAtTime(this.params.amount, audioContext.currentTime);
+    }
+
+    destroy() {
+        if (this.lfoNode) {
+            try {
+                if (this.isPlaying) this.lfoNode.stop();
+            } catch (e) {}
+            try {
+                this.lfoNode.disconnect();
+            } catch (e) {}
+        }
         super.destroy();
     }
 }
@@ -475,14 +628,14 @@ class OutputModule extends AudioModule {
         inputNodeDOM.addEventListener('mouseup', (e) => {
             e.stopPropagation();
             if (this.isCorrectAnswerModule) return;
-            if (drawingLine && lineStartNodeInfo) {
+            if (drawingLine && lineStartNodeInfo && lineStartNodeInfo.connectionType === 'audio') {
                 const sourceModule = getModuleById(lineStartNodeInfo.sourceModuleId);
                 const targetModule = getModuleById(this.id);
                 if (sourceModule && targetModule) {
-                    connectModules(sourceModule, targetModule);
+                    connectModules(sourceModule, targetModule, null);
                 }
-                stopDrawingLine();
             }
+            stopDrawingLine();
         });
     }
     createOutputNodeDOM() {

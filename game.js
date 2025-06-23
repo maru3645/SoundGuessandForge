@@ -240,11 +240,11 @@ function checkAnswer() {
     
     for (let i = 0; i < correctAnswerModules.length - 1; i++) {
         // visualOnlyをtrueにして、音声接続を行わないようにする
-        connectModules(correctAnswerModules[i], correctAnswerModules[i + 1], true);
+        connectModules(correctAnswerModules[i], correctAnswerModules[i + 1], null, true);
     }
     if (correctAnswerModules.length > 0) {
         // visualOnlyをtrueにして、音声接続を行わないようにする
-        connectModules(correctAnswerModules[correctAnswerModules.length - 1], correctOutputModule, true);
+        connectModules(correctAnswerModules[correctAnswerModules.length - 1], correctOutputModule, null, true);
     }
     updateConnectionsSVG();
     // --- 表示完了 ---

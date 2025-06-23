@@ -39,6 +39,14 @@
         }
         .input-node { left: -8px; top: 50%; transform: translateY(-50%); background-color: #2ecc71;}
         .output-node { right: -8px; top: 50%; transform: translateY(-50%); background-color: #e74c3c;}
+        .param-input-node {
+            width: 10px;
+            height: 10px;
+            background-color: #f39c12; /* Orange */
+            border-radius: 2px; /* Square */
+            left: -7px;
+            /* top is set via inline style */
+        }
         .module .param-slider { width: 100%; }
         .module .param-label { font-size: 0.8em; margin-bottom: 2px; }
         #workspace {
@@ -53,6 +61,8 @@
         #param-editor { width: 230px; background-color: #f0f0f0; padding: 10px; overflow-y: auto;}
         .connection-line { stroke: #555; stroke-width: 3; fill: none; pointer-events: auto; }
         .connection-line:hover { stroke: #e74c3c; cursor: pointer;} /* ホバー時のスタイルとカーソル */
+        .connection-line-param { stroke: #f39c12; stroke-width: 2; stroke-dasharray: 4 2; fill: none; pointer-events: auto; }
+        .connection-line-param:hover { stroke: #e74c3c; cursor: pointer; }
         /* ボタン共通スタイル */
         .control-button {
             padding: 8px 16px;
@@ -116,6 +126,7 @@
             <button data-type="filter" class="block w-full text-left p-2 mb-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors">フィルター</button>
             <button data-type="delay" class="block w-full text-left p-2 mb-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors">ディレイ</button>
             <button data-type="reverb" class="block w-full text-left p-2 mb-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors">リバーブ</button>
+            <button data-type="lfo" class="block w-full text-left p-2 mb-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 transition-colors">LFO</button>
             <button data-type="output" class="block w-full text-left p-2 mb-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors">アウトプット</button>
             
             <!-- ヒントエリア -->
