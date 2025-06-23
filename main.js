@@ -18,6 +18,9 @@ window.addEventListener('load', () => {
     playButton = document.getElementById('play-button');
     stopButton = document.getElementById('stop-button');
     resetButton = document.getElementById('reset-button');
+    hint1Button = document.getElementById('hint-1-button');
+    hint2Button = document.getElementById('hint-2-button');
+    hintDisplay = document.getElementById('hint-display');
 
     // イベントリスナーを設定
     startAudioButton.addEventListener('click', () => {
@@ -138,6 +141,7 @@ window.addEventListener('load', () => {
             globalOutputNode = null;
             clearParamEditor();
             connectionsSvg.innerHTML = '';
+            if (hintDisplay) hintDisplay.innerHTML = '';
             
             // Outputモジュールを再生成
             const outputModule = createModule('output');
@@ -159,6 +163,10 @@ window.addEventListener('load', () => {
     const checkAnswerButton = document.getElementById('check-answer-button');
     playAnswerButton.addEventListener('click', playCorrectAnswer);
     checkAnswerButton.addEventListener('click', checkAnswer);
+    
+    // ヒントボタンのイベントリスナー
+    if (hint1Button) hint1Button.addEventListener('click', showHint1);
+    if (hint2Button) hint2Button.addEventListener('click', showHint2);
     
     console.log('ページ読み込み完了、正解生成を開始します...');
     generateRandomCorrectAnswer();

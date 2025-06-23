@@ -274,3 +274,25 @@ function checkAnswer() {
 function displayCorrectAnswerDetails() {
     // 必要に応じて実装
 }
+
+function showHint1() {
+    const hintDisplay = document.getElementById('hint-display');
+    if (!hintDisplay || !correctAnswer || !correctAnswer.modulesConfig) return;
+
+    const moduleCount = correctAnswer.modulesConfig.length;
+    hintDisplay.innerHTML = `<p>正解のモジュール数は <strong>${moduleCount}</strong> 個です。(Outputを除く)</p>`;
+}
+
+function showHint2() {
+    const hintDisplay = document.getElementById('hint-display');
+    if (!hintDisplay || !correctAnswer || !correctAnswer.modulesConfig) return;
+
+    const moduleTypes = correctAnswer.modulesConfig.map(m => m.type);
+    // シャッフルして順番をわからなくする
+    for (let i = moduleTypes.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [moduleTypes[i], moduleTypes[j]] = [moduleTypes[j], moduleTypes[i]];
+    }
+    
+    hintDisplay.innerHTML = `<p>使用されているモジュールの種類は...<br><strong>${moduleTypes.join(', ')}</strong> です。</p><p class="text-xs text-gray-500">(順不同)</p>`;
+}
