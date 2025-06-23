@@ -18,6 +18,11 @@
             width: 150px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
+        .correct-answer-module {
+            background-color: #e8f4f8; /* 少し青みがかった背景 */
+            border: 1px dashed #3498db; /* 破線ボーダー */
+            cursor: default; /* カーソルをデフォルトに */
+        }
         .module-title { font-weight: bold; margin-bottom: 5px; font-size: 0.9em; text-align: center; }
         .io-node {
             width: 12px;
@@ -33,11 +38,11 @@
         .module .param-slider { width: 100%; }
         .module .param-label { font-size: 0.8em; margin-bottom: 2px; }
         #workspace {
-            width: calc(100% - 200px - 230px - 20px); /* 画面幅 - 左パネル - 右パネル - gap */
-            height: calc(100vh - 64px - 20px); /* 画面高さ - ヘッダー - gap */
+            /* width: calc(100% - 200px - 230px - 20px); */ /* 削除 */
+            /* height: calc(100vh - 64px - 20px); */ /* 削除 */
             border: 1px solid #ddd;
             position: relative;
-            overflow: hidden;
+            overflow: auto;
             background-color: #e9e9e9;
         }
         #module-palette { width: 200px; background-color: #f0f0f0; padding: 10px; }
@@ -109,10 +114,18 @@
             <button data-type="output" class="block w-full text-left p-2 mb-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors">アウトプット</button>
         </div>
 
-        <!-- 中央: ワークスペース -->
-        <div id="workspace" class="flex-1">
-            <svg id="connections-svg" width="100%" height="100%" style="position: absolute; top: 0; left: 0;"></svg>
-            <!-- モジュールはここに動的に追加されます -->
+        <!-- 中央エリア（ワークスペースとビジュアライザを内包） -->
+        <div class="flex flex-col flex-1">
+            <!-- ワークスペース -->
+            <div id="workspace" class="flex-1">
+                <svg id="connections-svg" width="100%" height="100%" style="position: absolute; top: 0; left: 0;"></svg>
+                <!-- モジュールはここに動的に追加されます -->
+            </div>
+            <!-- 波形・スペクトラム表示エリア -->
+            <div class="bg-white rounded-b-lg shadow-inner px-2 py-1" style="height:120px;">
+                <canvas id="waveform-canvas" width="600" height="50" style="width:100%;max-width:100%;"></canvas>
+                <canvas id="spectrum-canvas" width="600" height="50" style="width:100%;max-width:100%;"></canvas>
+            </div>
         </div>
 
         <!-- 右: パラメータエディタ -->
@@ -143,5 +156,6 @@
     <script src="ui.js"></script>
     <script src="game.js"></script>
     <script src="main.js"></script>
+    <script src="visualizer.js"></script>
 </body>
 </html>

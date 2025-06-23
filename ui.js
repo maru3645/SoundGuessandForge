@@ -1,17 +1,45 @@
 // ui.js
 // UI描画・パラメータエディタ・ドラッグ＆ドロップ・SVG接続線など
 
-function createModule(type, x, y) {
+function createModule(type, x, y, isCorrectAnswerModule = false) {
+    // workspaceの中央に配置する（x, y未指定時）
+    if (typeof x !== "number" || typeof y !== "number") {
+        // 固定座標で配置（確実に表示されるように）
+        x = 200;
+        y = 100;
+    }
+    
+    console.log(`Creating module ${type} at (${x}, ${y})`); // デバッグ用
+    
     let newModule;
     switch (type) {
-        case 'oscillator': newModule = new OscillatorModule(x, y); break;
-        case 'gain': newModule = new GainModule(x, y); break;
-        case 'filter': newModule = new FilterModule(x, y); break;
-        case 'delay': newModule = new DelayModule(x, y); break;
-        case 'output': newModule = new OutputModule(x, y); break;
+        case 'oscillator': newModule = new OscillatorModule(x, y, isCorrectAnswerModule); break;
+        case 'gain': newModule = new GainModule(x, y, isCorrectAnswerModule); break;
+        case 'filter': newModule = new FilterModule(x, y, isCorrectAnswerModule); break;
+        case 'delay': newModule = new DelayModule(x, y, isCorrectAnswerModule); break;
+        case 'output': newModule = new OutputModule(x, y, isCorrectAnswerModule); break;
         default: return;
     }
-    selectModule(newModule);
+    
+    console.log('Module DOM element:', newModule.domElement); // デバッグ用
+    
+    // workspaceにDOMを追加（重複防止のため一度だけ）
+    if (workspace && !workspace.contains(newModule.domElement)) {
+        workspace.appendChild(newModule.domElement);
+        console.log('Module added to workspace'); // デバッグ用
+    } else {
+        console.log('Failed to add module to workspace'); // デバッグ用
+    }
+    
+    // modules配列に追加（重複防止）
+    if (!modules.includes(newModule)) {
+        modules.push(newModule);
+        console.log('Module added to modules array, total:', modules.length); // デバッグ用
+    }
+    
+    if (!isCorrectAnswerModule) {
+        selectModule(newModule);
+    }
     return newModule;
 }
 
@@ -21,6 +49,10 @@ function selectModule(module) {
     }
     selectedModule = module;
     if (selectedModule && selectedModule.domElement) {
+        if (selectedModule.isCorrectAnswerModule) {
+            clearParamEditor();
+            return;
+        }
         selectedModule.domElement.style.borderColor = '#3498db';
         renderParamEditor(module);
     } else {
@@ -40,6 +72,15 @@ function renderParamEditor(module) {
     paramEditorContent.appendChild(title);
     const editorHTML = module.getEditorHTML();
     paramEditorContent.innerHTML += editorHTML;
+
+    if (module.isCorrectAnswerModule) {
+        const info = document.createElement('p');
+        info.textContent = 'これは正解のモジュールです。パラメータは編集できません。';
+        info.className = 'text-xs text-gray-500 mt-2';
+        paramEditorContent.appendChild(info);
+        return;
+    }
+
     // イベントバインド（各モジュールごとに）
     if (module.type === 'oscillator') {        document.getElementById(`osc-type-${module.id}`).addEventListener('change', (e) => {
             module.params.type = e.target.value;

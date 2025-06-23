@@ -38,6 +38,11 @@ window.addEventListener('load', () => {
         startAudioButton.classList.add('control-button-gray');
         playButton.disabled = false;
         stopButton.disabled = false;
+        
+        // Visualizer初期化
+        if (typeof initVisualizer === 'function') {
+            initVisualizer();
+        }
     });
 
     modulePalette.addEventListener('click', (e) => {
@@ -47,7 +52,7 @@ window.addEventListener('load', () => {
                 alert('まず「オーディオ開始」ボタンを押してください。');
                 return;
             }
-            createModule(type, 50, 50);
+            createModule(type); // ←座標指定なしで中央配置
         }
     });
 
@@ -87,6 +92,7 @@ window.addEventListener('load', () => {
         } else {
             startOscillatorsAndReconnect();
         }
+        if (typeof startVisualizer === 'function') startVisualizer();
     });
 
     function startOscillatorsAndReconnect() {
@@ -118,6 +124,7 @@ window.addEventListener('load', () => {
             osc.initAudioNode();
         });
         reconnectAll();
+        if (typeof stopVisualizer === 'function') stopVisualizer();
     });
 
     resetButton.addEventListener('click', () => {
@@ -133,8 +140,7 @@ window.addEventListener('load', () => {
             connectionsSvg.innerHTML = '';
             
             // Outputモジュールを再生成
-            const outputModule = new OutputModule(600, 200);
-            modules.push(outputModule);
+            const outputModule = createModule('output');
             globalOutputNode = outputModule;
             
             // 新しい正解を生成
@@ -144,8 +150,7 @@ window.addEventListener('load', () => {
     });
 
     if (!globalOutputNode) {
-        const outputModule = new OutputModule(600, 200);
-        modules.push(outputModule);
+        const outputModule = createModule('output');
         globalOutputNode = outputModule;
     }
     

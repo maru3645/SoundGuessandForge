@@ -2,15 +2,19 @@
 // 各モジュールクラス定義
 
 class AudioModule {
-    constructor(type, x, y, namePrefix = '') {
+    constructor(type, x, y, namePrefix = '', isCorrectAnswerModule = false) {
         this.id = nextModuleId++;
         this.type = type;
         this.name = `${namePrefix}${type.charAt(0).toUpperCase() + type.slice(1)} #${this.id}`;
         this.audioNode = null;
         this.connections = [];
+        this.isCorrectAnswerModule = isCorrectAnswerModule;
 
         this.domElement = document.createElement('div');
         this.domElement.className = 'module';
+        if (this.isCorrectAnswerModule) {
+            this.domElement.classList.add('correct-answer-module');
+        }
         this.domElement.id = `module-${this.id}`;
         this.domElement.style.left = `${x}px`;
         this.domElement.style.top = `${y}px`;
@@ -20,23 +24,26 @@ class AudioModule {
         this.domElement.appendChild(title);
         this.paramContainer = document.createElement('div');
         this.domElement.appendChild(this.paramContainer);
-        this.domElement.addEventListener('mousedown', (e) => {
-            if (e.target.classList.contains('io-node')) return;
-            draggingModule = this;
-            const rect = this.domElement.getBoundingClientRect();
-            dragOffsetX = e.clientX - rect.left;
-            dragOffsetY = e.clientY - rect.top;
-            this.domElement.style.cursor = 'grabbing';
-            this.domElement.style.zIndex = 1000;
-        });
-        this.domElement.addEventListener('click', (e) => {
-            if (e.target.classList.contains('io-node')) return;
-            selectModule(this);
-        });
+
+        if (!this.isCorrectAnswerModule) {
+            this.domElement.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('io-node')) return;
+                draggingModule = this;
+                const rect = this.domElement.getBoundingClientRect();
+                dragOffsetX = e.clientX - rect.left;
+                dragOffsetY = e.clientY - rect.top;
+                this.domElement.style.cursor = 'grabbing';
+                this.domElement.style.zIndex = 1000;
+            });
+            this.domElement.addEventListener('click', (e) => {
+                if (e.target.classList.contains('io-node')) return;
+                selectModule(this);
+            });
+        }
         this.createInputNodeDOM();
         this.createOutputNodeDOM();
-        workspace.appendChild(this.domElement);
-        modules.push(this);
+        // workspace.appendChild(this.domElement); // ←削除
+        // modules.push(this); // ←削除
     }
     initAudioNode() {}
     getEditorHTML() { return ''; }
@@ -52,6 +59,7 @@ class AudioModule {
         inputNodeDOM.addEventListener('mousedown', (e) => e.stopPropagation());
         inputNodeDOM.addEventListener('mouseup', (e) => {
             e.stopPropagation();
+            if (this.isCorrectAnswerModule) return;
             if (drawingLine && lineStartNodeInfo) {
                 const sourceModule = getModuleById(lineStartNodeInfo.sourceModuleId);
                 const targetModule = getModuleById(this.id);
@@ -72,6 +80,7 @@ class AudioModule {
         this.domElement.appendChild(outputNodeDOM);
         outputNodeDOM.addEventListener('mousedown', (e) => {
             e.stopPropagation();
+            if (this.isCorrectAnswerModule) return;
             startDrawingLine(e, this.id, e.target);
         });
     }
@@ -134,8 +143,8 @@ class AudioModule {
 }
 
 class OscillatorModule extends AudioModule {
-    constructor(x, y) {
-        super('oscillator', x, y, 'Osc ');
+    constructor(x, y, isCorrectAnswerModule = false) {
+        super('oscillator', x, y, 'Osc ', isCorrectAnswerModule);
         this.params = { type: 'sine', frequency: 440, detune: 0 };
         this.isPlaying = false;
         this.initAudioNode();
@@ -153,6 +162,13 @@ class OscillatorModule extends AudioModule {
         this.audioNode.detune.setValueAtTime(this.params.detune, audioContext.currentTime);
     }
     getEditorHTML() {
+        if (this.isCorrectAnswerModule) {
+            return `
+                <div class="mb-2"><label class="param-label">Type: ${this.params.type}</label></div>
+                <div class="mb-2"><label class="param-label">Frequency: ${this.params.frequency} Hz</label></div>
+                <div class="mb-2"><label class="param-label">Detune: ${this.params.detune} Cents</label></div>
+            `;
+        }
         return `
             <div class="mb-2">
                 <label class="param-label">Type:
@@ -185,8 +201,8 @@ class OscillatorModule extends AudioModule {
 }
 
 class GainModule extends AudioModule {
-    constructor(x, y) {
-        super('gain', x, y, 'Gain ');
+    constructor(x, y, isCorrectAnswerModule = false) {
+        super('gain', x, y, 'Gain ', isCorrectAnswerModule);
         this.params = { gain: 0.5 };
         this.initAudioNode();
         this.updateParams();
@@ -198,6 +214,9 @@ class GainModule extends AudioModule {
         this.audioNode.gain.setValueAtTime(this.params.gain, audioContext.currentTime);
     }
     getEditorHTML() {
+        if (this.isCorrectAnswerModule) {
+            return `<div class="mb-2"><label class="param-label">Gain: ${this.params.gain.toFixed(2)}</label></div>`;
+        }
         return `
             <div class="mb-2">
                 <label class="param-label">Gain: <span id="gain-val-${this.id}">${this.params.gain.toFixed(2)}</span>
@@ -213,8 +232,8 @@ class GainModule extends AudioModule {
 }
 
 class FilterModule extends AudioModule {
-    constructor(x, y) {
-        super('filter', x, y, 'Filter ');
+    constructor(x, y, isCorrectAnswerModule = false) {
+        super('filter', x, y, 'Filter ', isCorrectAnswerModule);
         this.params = { type: 'lowpass', frequency: 350, q: 1 };
         this.initAudioNode();
         this.updateParams();
@@ -228,6 +247,13 @@ class FilterModule extends AudioModule {
         this.audioNode.Q.setValueAtTime(this.params.q, audioContext.currentTime);
     }
     getEditorHTML() {
+        if (this.isCorrectAnswerModule) {
+            return `
+                <div class="mb-2"><label class="param-label">Type: ${this.params.type}</label></div>
+                <div class="mb-2"><label class="param-label">Frequency: ${this.params.frequency} Hz</label></div>
+                <div class="mb-2"><label class="param-label">Q: ${this.params.q.toFixed(2)}</label></div>
+            `;
+        }
         return `
             <div class="mb-2">
                 <label class="param-label">Type:
@@ -261,8 +287,8 @@ class FilterModule extends AudioModule {
 }
 
 class DelayModule extends AudioModule {
-    constructor(x,y) {
-        super('delay', x, y, 'Delay ');
+    constructor(x,y, isCorrectAnswerModule = false) {
+        super('delay', x, y, 'Delay ', isCorrectAnswerModule);
         this.params = { delayTime: 0.3, feedback: 0.4 };
         this.feedbackNode = null;
         this.initAudioNode();
@@ -282,6 +308,12 @@ class DelayModule extends AudioModule {
         this.feedbackNode.gain.setValueAtTime(this.params.feedback, audioContext.currentTime);
     }
     getEditorHTML() {
+        if (this.isCorrectAnswerModule) {
+            return `
+                <div class="mb-2"><label class="param-label">Delay Time: ${this.params.delayTime.toFixed(2)} s</label></div>
+                <div class="mb-2"><label class="param-label">Feedback: ${this.params.feedback.toFixed(2)}</label></div>
+            `;
+        }
         return `
             <div class="mb-2">
                 <label class="param-label">Delay Time: <span id="delay-time-val-${this.id}">${this.params.delayTime.toFixed(2)}</span> s
@@ -318,8 +350,8 @@ class DelayModule extends AudioModule {
 }
 
 class OutputModule extends AudioModule {
-    constructor(x,y) {
-        super('output', x, y, 'Output ');
+    constructor(x,y, isCorrectAnswerModule = false) {
+        super('output', x, y, 'Output ', isCorrectAnswerModule);
         this.initAudioNode();
     }
     initAudioNode() {
@@ -335,6 +367,7 @@ class OutputModule extends AudioModule {
         inputNodeDOM.addEventListener('mousedown', (e) => e.stopPropagation());
         inputNodeDOM.addEventListener('mouseup', (e) => {
             e.stopPropagation();
+            if (this.isCorrectAnswerModule) return;
             if (drawingLine && lineStartNodeInfo) {
                 const sourceModule = getModuleById(lineStartNodeInfo.sourceModuleId);
                 const targetModule = getModuleById(this.id);
