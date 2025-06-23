@@ -58,6 +58,30 @@ function generateRandomCorrectAnswer() {
         }
         correctAnswer.modulesConfig.push({ type: type, params: params });
     });
+
+    // LFOモジュレーションを追加
+    if (Math.random() < 0.5) { // 50%の確率でLFOを追加
+        const lfoParams = {
+            type: ['sine', 'square', 'sawtooth', 'triangle'][Math.floor(Math.random() * 4)],
+            frequency: parseFloat((Math.random() * (10 - 0.5) + 0.5).toFixed(1)),
+            amount: Math.floor(Math.random() * (800 - 50 + 1)) + 50
+        };
+
+        const modulatableModules = correctAnswer.modulesConfig.filter(m => ['oscillator', 'filter', 'gain', 'delay'].includes(m.type));
+        if (modulatableModules.length > 0) {
+            const targetModule = modulatableModules[Math.floor(Math.random() * modulatableModules.length)];
+            let targetParam = 'frequency'; // デフォルト
+            if (targetModule.type === 'gain') targetParam = 'gain';
+            if (targetModule.type === 'delay') targetParam = 'delayTime';
+            
+            correctAnswer.modulesConfig.push({
+                type: 'lfo',
+                params: lfoParams,
+                modulationTarget: { type: targetModule.type, param: targetParam }
+            });
+        }
+    }
+
     console.log('新しい正解 (modulesConfig):', JSON.parse(JSON.stringify(correctAnswer.modulesConfig)));
 }
 
@@ -75,7 +99,10 @@ function playCorrectAnswer() {
         // ビジュアライザが有効ならそちらへ、なければ直接destinationへ接続
         const finalDestination = analyserNode || audioContext.destination;
 
-        correctAnswer.modulesConfig.forEach(moduleConfig => {
+        const chainModules = correctAnswer.modulesConfig.filter(c => c.type !== 'lfo');
+        const lfoModules = correctAnswer.modulesConfig.filter(c => c.type === 'lfo');
+
+        chainModules.forEach(moduleConfig => {
             let currentNode = null;
             let inputNode = null; // Delayのような内部ルーティングを持つモジュール用
 
@@ -171,6 +198,41 @@ function playCorrectAnswer() {
         if (lastConnectedNode) {
             lastConnectedNode.connect(finalDestination);
         }
+
+        // LFOを接続
+        lfoModules.forEach(lfoConfig => {
+            const lfo = audioContext.createOscillator();
+            const lfoGain = audioContext.createGain();
+            lfo.type = lfoConfig.params.type;
+            lfo.frequency.setValueAtTime(lfoConfig.params.frequency, audioContext.currentTime);
+            lfoGain.gain.setValueAtTime(lfoConfig.params.amount, audioContext.currentTime);
+            lfo.connect(lfoGain);
+            lfo.start(audioContext.currentTime);
+            tempAudioNodes.push({type: 'lfo', node: lfo});
+            tempAudioNodes.push({type: 'lfo_gain', node: lfoGain});
+
+            const targetType = lfoConfig.modulationTarget.type;
+            const targetParamName = lfoConfig.modulationTarget.param;
+            const targetNodeItem = tempAudioNodes.find(item => item.type === targetType);
+
+            if (targetNodeItem) {
+                let targetAudioParam;
+                if (targetType === 'delay' && targetParamName === 'feedback') {
+                    const feedbackNodeItem = tempAudioNodes.find(item => item.type === 'feedback');
+                    if (feedbackNodeItem) targetAudioParam = feedbackNodeItem.node.gain;
+                } else if (targetType === 'reverb' && targetParamName === 'mix') {
+                    const wetNodeItem = tempAudioNodes.find(item => item.type === 'reverb_wet');
+                    if (wetNodeItem) targetAudioParam = wetNodeItem.node.gain;
+                } else {
+                    targetAudioParam = targetNodeItem.node[targetParamName];
+                }
+
+                if (targetAudioParam instanceof AudioParam) {
+                    lfoGain.connect(targetAudioParam);
+                }
+            }
+        });
+
         setTimeout(() => {
             tempAudioNodes.forEach(item => {
                 if (item.type === 'oscillator' && item.node.stop) {
@@ -210,6 +272,7 @@ function checkAnswer() {
     const paramMatchBonus = 5;
     const typeMatchBonus = 10;
     const modulePresencePenalty = -15;
+    const connectionBonus = 10;
 
     const userModules = modules.filter(m => m.type !== 'output' && !m.isCorrectAnswerModule);
     const correctModulesConfig = correctAnswer.modulesConfig;
@@ -227,7 +290,12 @@ function checkAnswer() {
     const moduleWidth = 150;
     const moduleSpacing = 20;
 
-    correctModulesConfig.forEach((moduleConfig, index) => {
+    const correctChainModules = correctModulesConfig.filter(c => c.type !== 'lfo');
+    const correctLfoModules = correctModulesConfig.filter(c => c.type === 'lfo');
+    const userChainModules = userModules.filter(m => m.type !== 'lfo');
+    const userLfoModules = userModules.filter(m => m.type === 'lfo');
+
+    correctChainModules.forEach((moduleConfig, index) => {
         const x = startX + index * (moduleWidth + moduleSpacing);
         const y = startY;
         const correctModule = createModule(moduleConfig.type, x, y, true);
@@ -236,7 +304,7 @@ function checkAnswer() {
         correctAnswerModules.push(correctModule);
     });
 
-    const correctOutputModule = createModule('output', startX + correctModulesConfig.length * (moduleWidth + moduleSpacing), startY, true);
+    const correctOutputModule = createModule('output', startX + correctChainModules.length * (moduleWidth + moduleSpacing), startY, true);
     
     for (let i = 0; i < correctAnswerModules.length - 1; i++) {
         // visualOnlyをtrueにして、音声接続を行わないようにする
@@ -246,20 +314,39 @@ function checkAnswer() {
         // visualOnlyをtrueにして、音声接続を行わないようにする
         connectModules(correctAnswerModules[correctAnswerModules.length - 1], correctOutputModule, null, true);
     }
+    // LFOとターゲットの接続も表示
+    correctLfoModules.forEach((lfoConfig, index) => {
+        const x = startX + index * (moduleWidth + moduleSpacing);
+        const y = startY + 120; // LFOは下に表示
+        const correctLfoModule = createModule(lfoConfig.type, x, y, true);
+        correctLfoModule.params = { ...lfoConfig.params };
+        correctLfoModule.updateParams();
+        
+        const targetModule = correctAnswerModules.find(m => m.type === lfoConfig.modulationTarget.type);
+        if (targetModule) {
+            connectModules(correctLfoModule, targetModule, lfoConfig.modulationTarget.param, true);
+        }
+    });
+
     updateConnectionsSVG();
     // --- 表示完了 ---
 
-    explanation += `正解: ${correctModulesConfig.map(c => c.type).join(' -> ')}\n`;
-    explanation += `あなた: ${userModules.map(u => u.type).join(' -> ') || '(モジュールなし)'}\n\n`;
+    explanation += `正解(Audio): ${correctChainModules.map(c => c.type).join(' -> ')}\n`;
+    explanation += `あなた(Audio): ${userChainModules.map(u => u.type).join(' -> ') || '(モジュールなし)'}\n`;
+    if (correctLfoModules.length > 0) {
+        explanation += `正解(Mod): ${correctLfoModules.map(c => `LFO -> ${c.modulationTarget.type}.${c.modulationTarget.param}`).join(', ')}\n`;
+    }
+    explanation += '\n';
+
 
     const matchedCorrectIndices = new Set();
 
-    userModules.forEach(userModule => {
+    userChainModules.forEach(userModule => {
         let foundMatch = false;
-        for (let i = 0; i < correctModulesConfig.length; i++) {
+        for (let i = 0; i < correctChainModules.length; i++) {
             if (matchedCorrectIndices.has(i)) continue;
 
-            const correctConfig = correctModulesConfig[i];
+            const correctConfig = correctChainModules[i];
             if (userModule.type === correctConfig.type) {
                 matchedCorrectIndices.add(i);
                 score += typeMatchBonus;
@@ -306,13 +393,80 @@ function checkAnswer() {
         }
     });
 
-    correctModulesConfig.forEach((correctConfig, i) => {
+    correctChainModules.forEach((correctConfig, i) => {
         if (!matchedCorrectIndices.has(i)) {
             correctAnswerModules[i].domElement.style.border = '2px solid #e74c3c'; // Red
             score += modulePresencePenalty;
             explanation += `[不足] 正解の ${correctConfig.type} がありません (${modulePresencePenalty}点)\n`;
         }
     });
+
+    // LFOのチェック
+    const matchedCorrectLfoIndices = new Set();
+    const matchedUserLfoIndices = new Set();
+
+    userLfoModules.forEach((userLfo, userIndex) => {
+        const conn = connections.find(c => c.sourceId === userLfo.id);
+        if (!conn) {
+            explanation += `[接続なし] ${userLfo.name} はどこにも接続されていません。\n`;
+            return;
+        }
+        const targetModule = getModuleById(conn.targetId);
+        if (!targetModule) return;
+
+        let foundMatch = false;
+        for (let i = 0; i < correctLfoModules.length; i++) {
+            if (matchedCorrectLfoIndices.has(i)) continue;
+            const correctLfo = correctLfoModules[i];
+
+            if (targetModule.type === correctLfo.modulationTarget.type && conn.param === correctLfo.modulationTarget.param) {
+                matchedCorrectLfoIndices.add(i);
+                matchedUserLfoIndices.add(userIndex);
+                foundMatch = true;
+
+                score += typeMatchBonus + connectionBonus;
+                explanation += `[一致] ${userLfo.name} -> ${targetModule.type}.${conn.param} (+${typeMatchBonus + connectionBonus}点)\n`;
+
+                // パラメータチェック
+                let allParamsMatch = true;
+                for (const paramName in correctLfo.params) {
+                    let isMatch = false;
+                    const userValue = userLfo.params[paramName];
+                    const correctValue = correctLfo.params[paramName];
+                    if (typeof correctValue === 'string') {
+                        isMatch = userValue === correctValue;
+                    } else if (typeof correctValue === 'number') {
+                        let tolerance = paramName === 'frequency' ? 2 : 50;
+                        isMatch = Math.abs(userValue - correctValue) <= tolerance;
+                    }
+                    if (isMatch) {
+                        score += paramMatchBonus;
+                        explanation += `  - ${paramName}: 一致 (+${paramMatchBonus}点)\n`;
+                    } else {
+                        allParamsMatch = false;
+                        explanation += `  - ${paramName}: 不一致 (正解: ${correctValue}, あなた: ${userValue})\n`;
+                    }
+                }
+                if (allParamsMatch) userLfo.domElement.style.border = '2px solid #2ecc71';
+                else userLfo.domElement.style.border = '2px solid #f1c40f';
+                
+                break; // next userLfo
+            }
+        }
+        if (!foundMatch) {
+            userLfo.domElement.style.border = '2px solid #e74c3c';
+            score += modulePresencePenalty;
+            explanation += `[不正な接続] ${userLfo.name} -> ${targetModule.type}.${conn.param} (${modulePresencePenalty}点)\n`;
+        }
+    });
+
+    correctLfoModules.forEach((correctLfo, i) => {
+        if (!matchedCorrectLfoIndices.has(i)) {
+            score += modulePresencePenalty;
+            explanation += `[不足] 正解の LFO -> ${correctLfo.modulationTarget.type}.${correctLfo.modulationTarget.param} がありません (${modulePresencePenalty}点)\n`;
+        }
+    });
+
 
     score = Math.max(0, Math.min(score, maxScore));
     alert(`スコア: ${Math.round(score)} / ${maxScore}\n\n--- 詳細 ---\n${explanation}`);

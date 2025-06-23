@@ -131,7 +131,7 @@ class AudioModule {
         if (!this.audioNode || !targetModule) return;
         try {
             if (targetParam) {
-                const targetAudioParam = targetModule.audioNode[targetParam];
+                const targetAudioParam = targetModule.getAudioParam(targetParam);
                 if (targetAudioParam instanceof AudioParam) {
                     this.audioNode.disconnect(targetAudioParam);
                 }
@@ -383,6 +383,15 @@ class DelayModule extends AudioModule {
     connectTo(targetModule, targetParam = null) {
         if (!this.audioNode) return false;
         return super.connectTo(targetModule, targetParam);
+    }
+    getAudioParam(paramName) {
+        if (paramName === 'delayTime' && this.audioNode) {
+            return this.audioNode.delayTime;
+        }
+        if (paramName === 'feedback' && this.feedbackNode) {
+            return this.feedbackNode.gain;
+        }
+        return super.getAudioParam(paramName);
     }
     connectInput(sourceModuleAudioNode) {
         if (!this.audioNode || !sourceModuleAudioNode) return false;
