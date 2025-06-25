@@ -268,45 +268,45 @@ function setChallengeCorrectAnswer() {
         };
         console.log('セミの鳴き声正解データを設定しました:', window.correctAnswer);
     } else if (url.includes('challenge_mode_doorbell.html')) {
-        // ドアチャイム（ピンポン）- 1回だけ再生するバージョン
+        // ドアチャイム（ピンポン）- シンプルな構成
         window.correctAnswer = {
-            soundType: 'doorbell', // 再生処理を分岐させるためのフラグ
+            soundType: 'doorbell', 
             modulesConfig: [
                 {
                     type: 'oscillator',
                     params: { 
-                        type: 'triangle',  // より豊かな倍音を持つ波形
-                        frequency: 783.99, // G5（ピンの音）
+                        type: 'triangle',
+                        frequency: 440, // デフォルト
                         detune: 0 
-                    }
-                },
-                {
-                    type: 'filter',
-                    params: {
-                        type: 'lowpass',   // 高周波をカットして柔らかい音に
-                        frequency: 1200,
-                        q: 1
                     }
                 },
                 {
                     type: 'gain',
                     params: {
-                        gain: 0.4          // ピーク音量
+                        gain: 0.5   
                     }
                 },
                 {
-                    type: 'reverb',        // 自然な響き
+                    type: 'filter',
                     params: {
-                        mix: 0.4,          // ウェットレベル
-                        time: 1.8,         // リバーブ時間
-                        decay: 2           // リバーブの減衰
+                        type: 'lowpass',
+                        frequency: 2000,
+                        q: 1.2
+                    }
+                },
+                {
+                    type: 'reverb',
+                    params: {
+                        mix: 0.25,
+                        time: 1.0,
+                        decay: 1.5
                     }
                 }
             ],
             connectionsConfig: [
-                { source: 0, target: 1 }, // オシレーター -> フィルター
-                { source: 1, target: 2 }, // フィルター -> ゲイン
-                { source: 2, target: 3 }, // ゲイン -> リバーブ
+                { source: 0, target: 1 }, // オシレーター -> ゲイン
+                { source: 1, target: 2 }, // ゲイン -> フィルター
+                { source: 2, target: 3 }, // フィルター -> リバーブ
                 { source: 3, target: 'output' } // リバーブ -> アウトプット
             ]
         };
@@ -563,49 +563,69 @@ function setChallengeCorrectAnswer() {
         };
         console.log('パソコンの起動音正解データを設定しました:', window.correctAnswer);
     } else if (url.includes('challenge_mode_phone.html')) {
-        // 電話の着信音 - 実際のリングリング音
+        // 電話の着信音 - リアルな「プルルルル」音
         window.correctAnswer = {
             modulesConfig: [
                 {
                     type: 'oscillator',
                     params: { 
                         type: 'sine',      // クリアなサイン波
-                        frequency: 440,    // A4音
-                        detune: 0 
-                    }
-                },
-                {
-                    type: 'oscillator',   // 2つ目のオシレーター（ハーモニー）
-                    params: { 
-                        type: 'sine',      
-                        frequency: 880,    // A5音（1オクターブ上）
+                        frequency: 440,    // 標準的な電話音（440Hz）
                         detune: 0 
                     }
                 },
                 {
                     type: 'gain',
                     params: {
-                        gain: 0.4          // 適度な音量
+                        gain: 0.3          // オシレーター1用のゲイン
+                    }
+                },
+                {
+                    type: 'oscillator',   // 2つ目のオシレーター
+                    params: { 
+                        type: 'sine',      
+                        frequency: 480,    // わずかにうなりを作る（480Hz）
+                        detune: 0 
+                    }
+                },
+                {
+                    type: 'gain',         // オシレーター2用のゲイン
+                    params: {
+                        gain: 0.3          // オシレーター2用のゲイン
                     }
                 },
                 {
                     type: 'lfo',
                     params: {
-                        type: 'square',    // リングパターン
-                        frequency: 0.33,   // 3秒周期（2秒オン、1秒オフ）
-                        amount: 0.4        // ゲインを変調
+                        type: 'sine',      // 滑らかなトレモロで「プルルル」効果
+                        frequency: 20,     // 20Hzのトレモロ（1秒間に20回の変化）
+                        amount: 0.3        // トレモロの深さ
                     },
                     modulationTarget: {
-                        moduleId: 2,       // ゲインを変調
+                        moduleId: 1,       // 1つ目のゲインを変調
+                        paramName: 'gain'
+                    }
+                },
+                {
+                    type: 'lfo',
+                    params: {
+                        type: 'sine',      // 同じトレモロを2つ目にも適用
+                        frequency: 20,     // 同期した20Hzのトレモロ
+                        amount: 0.3        // 同じトレモロの深さ
+                    },
+                    modulationTarget: {
+                        moduleId: 3,       // 2つ目のゲインを変調
                         paramName: 'gain'
                     }
                 }
             ],
             connectionsConfig: [
-                { source: 0, target: 2 }, // オシレーター1 -> ゲイン
-                { source: 1, target: 2 }, // オシレーター2 -> ゲイン
-                { source: 3, target: 2, param: 'gain' }, // LFO -> ゲイン.gain
-                { source: 2, target: 'output' } // ゲイン -> アウトプット
+                { source: 0, target: 1 }, // オシレーター1 -> ゲイン1
+                { source: 2, target: 3 }, // オシレーター2 -> ゲイン2
+                { source: 4, target: 1, param: 'gain' }, // LFO1 -> ゲイン1（プルルル効果）
+                { source: 5, target: 3, param: 'gain' }, // LFO2 -> ゲイン2（プルルル効果）
+                { source: 1, target: 'output' }, // ゲイン1 -> アウトプット
+                { source: 3, target: 'output' }  // ゲイン2 -> アウトプット
             ]
         };
         console.log('電話の着信音正解データを設定しました:', window.correctAnswer);

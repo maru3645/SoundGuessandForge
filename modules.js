@@ -578,7 +578,13 @@ class ReverbModule extends AudioModule {
 class PatternModule extends AudioModule {
     constructor(x, y, isCorrectAnswerModule = false) {
         super('pattern', x, y, 'Ptn ', isCorrectAnswerModule);
-        this.params = { onTime: 0.15, offTime: 0.1, repeat: 2 };
+        this.params = { 
+            onTime: 0.15, 
+            offTime: 0.1, 
+            repeat: 2,
+            pattern: null, // 値のパターン（ドアベル用）
+            speed: 1.0     // パターンのスピード
+        };
         this.isPlaying = false;
         this.targetInfo = null; // Store target info here { module, paramName, baseValue }
         this.isLooping = false; // ループ再生のフラグ
@@ -738,6 +744,65 @@ class PatternModule extends AudioModule {
         console.log('[PatternModule] start() - Base value:', baseValue);
         console.log('[PatternModule] start() - Params:', this.params);
         
+        // ドアベル専用パターン
+        if (this.params.doorbellPattern) {
+            console.log('[PatternModule] Playing doorbell pattern');
+            param.cancelScheduledValues(now);
+            param.setValueAtTime(0, now);
+            
+            // 最初にオシレーターの周波数をピン音（G5）に設定
+            const targetModuleIndex = this.targetInfo.module.originalIndex || 0;
+            const allModules = correctAnswer.modulesConfig;
+            const oscModule = allModules.find(m => m.type === 'oscillator');
+            
+            // ピン音：G5（783.99Hz）
+            const pingFreq = 783.99;
+            const pongFreq = 659.25; // E5
+            
+            // ピン音の再生（0.7秒間）
+            if (oscModule) {
+                // ここでオシレーターの周波数も変更する必要があるが、
+                // 今回はゲイン制御でエンベロープを作る
+                console.log('[PatternModule] Playing PING (high note)');
+            }
+            
+            // ピン音のエンベロープ
+            param.setValueAtTime(0.6, startTime);           // アタック
+            param.exponentialRampToValueAtTime(0.001, startTime + 0.6); // ディケイ
+            
+            // 間隔
+            param.setValueAtTime(0, startTime + 0.7);
+            
+            // ポン音のエンベロープ（1秒後）
+            param.setValueAtTime(0.5, startTime + 1.0);     // アタック
+            param.exponentialRampToValueAtTime(0.001, startTime + 1.6); // ディケイ
+            
+            console.log('[PatternModule] Doorbell envelope scheduled');
+            return;
+        }
+        
+        // 周波数パターンがある場合（従来の実装）
+        if (this.params.pattern && Array.isArray(this.params.pattern)) {
+            console.log('[PatternModule] Using frequency pattern:', this.params.pattern);
+            param.cancelScheduledValues(now);
+            
+            let scheduleTime = startTime;
+            const noteDuration = 0.6; // 各音の長さ
+            const noteGap = 0.1; // 音の間隔
+            
+            this.params.pattern.forEach((frequency, index) => {
+                console.log(`[PatternModule] Scheduling note ${index + 1}: ${frequency}Hz at ${scheduleTime.toFixed(3)}`);
+                param.setValueAtTime(frequency, scheduleTime);
+                scheduleTime += noteDuration;
+                if (index < this.params.pattern.length - 1) {
+                    param.setValueAtTime(0, scheduleTime); // 音の間に無音を挿入
+                    scheduleTime += noteGap;
+                }
+            });
+            return;
+        }
+        
+        // 従来のON/OFFパターン
         // 直接制御：現在の値をクリアして、パターンをスケジューリング
         param.cancelScheduledValues(now);
         param.setValueAtTime(0, now); // 初期値は0（無音）
@@ -769,7 +834,15 @@ class PatternModule extends AudioModule {
             
             this.start(); // 一回分のパターンを実行
             
-            // 次のループまでの時間を計算
+            // 周波数パターンの場合は長い間隔
+            if (this.params.pattern && Array.isArray(this.params.pattern)) {
+                const totalPatternTime = this.params.pattern.length * 0.7; // 各音0.6s + 間隔0.1s
+                const nextLoopDelay = totalPatternTime + 2.0; // ドアベルは2秒間隔
+                this.loopTimeoutId = setTimeout(scheduleNext, nextLoopDelay * 1000);
+                return;
+            }
+            
+            // 次のループまでの時間を計算（従来のON/OFF）
             const totalPatternTime = (this.params.onTime + this.params.offTime) * this.params.repeat;
             const nextLoopDelay = totalPatternTime + 0.5; // 0.5秒の間隔を追加
             
@@ -801,6 +874,12 @@ class PatternModule extends AudioModule {
     
     getEditorHTML() {
         if (this.isCorrectAnswerModule) {
+            if (this.params.pattern && Array.isArray(this.params.pattern)) {
+                return `<div class="p-2">
+                    <p class="text-sm text-gray-600">パターン: ${this.params.pattern.join(', ')}Hz</p>
+                    <p class="text-sm text-gray-600">スピード: ${this.params.speed}x</p>
+                </div>`;
+            }
             return `<div class="p-2">
                 <p class="text-sm text-gray-600">ON時間: ${this.params.onTime}s</p>
                 <p class="text-sm text-gray-600">OFF時間: ${this.params.offTime}s</p>
@@ -951,6 +1030,16 @@ class LFOModule extends AudioModule {
     setParams(params) {
         Object.assign(this.params, params);
         this.updateParams();
+    }
+
+    getAudioParam(paramName) {
+        if (paramName === 'frequency' && this.lfoNode) {
+            return this.lfoNode.frequency;
+        }
+        if (paramName === 'amount' && this.audioNode) {
+            return this.audioNode.gain;
+        }
+        return super.getAudioParam(paramName);
     }
 
     destroy() {

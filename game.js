@@ -1,28 +1,21 @@
 // game.js
 // 正解生成・答え合わせ・正解音再生・スコア計算など
 
-// main.jsで定義されたグローバル変数correctAnswerを必ず参照する
-// ここで再定義しないこと！
+// main.jsで定義されたグローバル変数correctAnswerを必要に応じて参照する
+// ここで再定義しないこと
 
 function generateRandomCorrectAnswer() {
     console.log('=== generateRandomCorrectAnswer START ===');
     console.log('generateRandomCorrectAnswer called');
-    console.log('URL:', window.location.href);
-    console.log('isChallengeMode:', window.isChallengeMode);
-    console.log('Current correctAnswer:', window.correctAnswer);
     
-    // チャレンジモード判定：URL基準で確実にチェック
-    const isChallengeMode = window.location.href.includes('challenge_mode');
-    console.log('URL基準でのチャレンジモード判定:', isChallengeMode);
+    // 現在のURLを確認
+    console.log('Current URL:', window.location.href);
+    console.log('Current window.correctAnswer:', window.correctAnswer);
     
-    // correctAnswerを初期化
-    if (!window.correctAnswer) {
-        window.correctAnswer = {};
-    }
-    
-    if (isChallengeMode) {
-        // チャレンジモードの場合は固定の正解を設定
-        console.log('チャレンジモードのため、固定の正解を生成します。');
+    // チャレンジモードかどうかを確認
+    if (window.location.href.includes('challenge_mode')) {
+        console.log('チャレンジモード検出 - setChallengeCorrectAnswerを実行');
+        // challengeモードの場合は、main.jsで設定されたcorrectAnswerを使用
         if (typeof setChallengeCorrectAnswer === 'function') {
             setChallengeCorrectAnswer();
         } else {
@@ -32,127 +25,124 @@ function generateRandomCorrectAnswer() {
         return;
     }
     
-    // ランダムモード用のロジックはここから開始
-    console.log('ランダムモードのため、新しい正解を生成します。');
+    console.log('ランダムモード検出 - 新しいcorrectAnswerを生成');
     
     // correctAnswerを初期化
+    window.correctAnswer = window.correctAnswer || {};
     window.correctAnswer.modulesConfig = [];
-    const moduleOrder = [];
-    // 1. Oscillatorは必須
-    moduleOrder.push('oscillator');
-    // 2. Filter を確率で追加 (70%の確率)
-    if (Math.random() < 0.7) moduleOrder.push('filter');
-    // 3. Gainは必須
-    moduleOrder.push('gain');
-    // 4. Delay を確率で追加 (70%の確率)
-    if (Math.random() < 0.7) moduleOrder.push('delay');
-    // 5. Reverb を確率で追加 (60%の確率)
-    if (Math.random() < 0.6) moduleOrder.push('reverb');
+    window.correctAnswer.connectionsConfig = [];
+    
+    const moduleTypes = ['oscillator', 'gain', 'filter', 'reverb'];
+    const numModules = Math.floor(Math.random() * 3) + 2; // 2-4個のモジュール
 
-    moduleOrder.forEach(type => {
+    // ランダムなモジュールを生戁E
+    for (let i = 0; i < numModules; i++) {
+        const type = moduleTypes[Math.floor(Math.random() * moduleTypes.length)];
         let params = {};
+        
         switch (type) {
             case 'oscillator':
-                const oscTypes = ['sine', 'square', 'sawtooth', 'triangle'];
                 params = {
-                    type: oscTypes[Math.floor(Math.random() * oscTypes.length)],
-                    frequency: Math.floor(Math.random() * (1200 - 80 + 1)) + 80,
-                    detune: Math.floor(Math.random() * (100 - (-100) + 1)) + (-100)
+                    type: ['sine', 'square', 'triangle', 'sawtooth'][Math.floor(Math.random() * 4)],
+                    frequency: Math.floor(Math.random() * 800) + 200, // 200-1000Hz
+                    detune: 0
                 };
                 break;
             case 'gain':
-                params = {
-                    gain: parseFloat((Math.random() * (0.4 - 0.1) + 0.1).toFixed(2))
-                };
+                params = { gain: Math.random() * 0.8 + 0.2 }; // 0.2-1.0
                 break;
             case 'filter':
-                const filterTypes = ['lowpass', 'highpass', 'bandpass', 'notch', 'peaking'];
                 params = {
-                    type: filterTypes[Math.floor(Math.random() * filterTypes.length)],
-                    frequency: Math.floor(Math.random() * (7000 - 150 + 1)) + 150,
-                    q: parseFloat((Math.random() * (10 - 0.2) + 0.2).toFixed(2))
-                };
-                break;
-            case 'delay':
-                params = {
-                    delayTime: parseFloat((Math.random() * (0.9 - 0.05) + 0.05).toFixed(3)),
-                    feedback: parseFloat((Math.random() * (0.75 - 0.05) + 0.05).toFixed(2))
+                    type: ['lowpass', 'highpass', 'bandpass'][Math.floor(Math.random() * 3)],
+                    frequency: Math.floor(Math.random() * 3000) + 500, // 500-3500Hz
+                    q: Math.random() * 3 + 0.5 // 0.5-3.5
                 };
                 break;
             case 'reverb':
                 params = {
-                    mix: parseFloat((Math.random() * (0.6 - 0.1) + 0.1).toFixed(2)),
-                    time: parseFloat((Math.random() * (3.0 - 0.5) + 0.5).toFixed(2))
+                    mix: Math.random() * 0.6 + 0.1, // 0.1-0.7
+                    time: Math.random() * 2 + 0.5,  // 0.5-2.5s
+                    decay: Math.random() * 3 + 1    // 1-4
                 };
                 break;
         }
-        correctAnswer.modulesConfig.push({ type: type, params: params });
-    });
+        
+        window.correctAnswer.modulesConfig.push({ type: type, params: params });
+    }
 
-    // LFOまたはPatternモジュレーションを追加
-    if (Math.random() < 0.5) { // 50%の確率でLFOまたはPatternを追加
-        const modulationType = Math.random() < 0.8 ? 'lfo' : 'pattern'; // 80%の確率でLFO、20%でPattern
-        
-        const audioChain = correctAnswer.modulesConfig.filter(m => m.type !== 'lfo' && m.type !== 'pattern');
-        const modulatableModules = audioChain.filter(m => ['oscillator', 'filter', 'gain', 'delay'].includes(m.type));
-        
-        if (modulatableModules.length > 0) {
-            const targetModuleConfig = modulatableModules[Math.floor(Math.random() * modulatableModules.length)];
-            const targetModuleId = audioChain.indexOf(targetModuleConfig);
+    // 30%の確率でLFOを追加
+    if (Math.random() < 0.3) {
+        const audioChain = window.correctAnswer.modulesConfig.filter(m => m.type !== 'lfo' && m.type !== 'pattern');
+        if (audioChain.length > 0) {
+            const targetModuleIndex = window.correctAnswer.modulesConfig.indexOf(audioChain[Math.floor(Math.random() * audioChain.length)]);
+            const targetModule = window.correctAnswer.modulesConfig[targetModuleIndex];
+            const possibleParams = ['frequency', 'gain'];
+            const targetParam = possibleParams.find(p => targetModule.params.hasOwnProperty(p));
             
-            let targetParamName = 'frequency'; // デフォルト
-            if (targetModuleConfig.type === 'gain') targetParamName = 'gain';
-            if (targetModuleConfig.type === 'delay') targetParamName = 'delayTime';
-            
-            if (modulationType === 'lfo') {
-                const lfoParams = {
-                    type: ['sine', 'square', 'sawtooth', 'triangle'][Math.floor(Math.random() * 4)],
-                    frequency: parseFloat((Math.random() * (10 - 0.5) + 0.5).toFixed(1)),
-                    amount: Math.floor(Math.random() * (800 - 50 + 1)) + 50
-                };
-                
-                correctAnswer.modulesConfig.push({
+            if (targetParam) {
+                window.correctAnswer.modulesConfig.push({
                     type: 'lfo',
-                    params: lfoParams,
-                    modulationTarget: { moduleId: targetModuleId, paramName: targetParamName }
-                });
-            } else if (modulationType === 'pattern') {
-                const patternParams = {
-                    onTime: parseFloat((Math.random() * (0.5 - 0.05) + 0.05).toFixed(2)),
-                    offTime: parseFloat((Math.random() * (0.3 - 0.05) + 0.05).toFixed(2)),
-                    repeat: Math.floor(Math.random() * 5) + 2 // 2-6回のリピート
-                };
-                
-                correctAnswer.modulesConfig.push({
-                    type: 'pattern',
-                    params: patternParams,
-                    modulationTarget: { moduleId: targetModuleId, paramName: targetParamName }
+                    params: {
+                        type: ['sine', 'square', 'triangle'][Math.floor(Math.random() * 3)],
+                        frequency: Math.random() * 10 + 0.5, // 0.5-10.5Hz
+                        amount: Math.random() * 100 + 10      // 10-110
+                    },
+                    modulationTarget: {
+                        moduleId: targetModuleIndex,
+                        paramName: targetParam
+                    }
                 });
             }
         }
     }
-    
-    // connectionsConfigを生成
-    const audioModules = correctAnswer.modulesConfig.filter(m => m.type !== 'lfo' && m.type !== 'pattern');
-    const connectionsConfig = [];
+
+    // 20%の確率でPatternを追加
+    if (Math.random() < 0.2) {
+        const audioChain = window.correctAnswer.modulesConfig.filter(m => m.type !== 'lfo' && m.type !== 'pattern');
+        if (audioChain.length > 0) {
+            const targetModuleIndex = window.correctAnswer.modulesConfig.indexOf(audioChain[Math.floor(Math.random() * audioChain.length)]);
+            const targetModule = window.correctAnswer.modulesConfig[targetModuleIndex];
+            const possibleParams = ['gain'];
+            const targetParam = possibleParams.find(p => targetModule.params.hasOwnProperty(p));
+            
+            if (targetParam) {
+                window.correctAnswer.modulesConfig.push({
+                    type: 'pattern',
+                    params: {
+                        onTime: Math.random() * 0.5 + 0.1,  // 0.1-0.6s
+                        offTime: Math.random() * 0.3 + 0.05, // 0.05-0.35s
+                        repeat: Math.floor(Math.random() * 5) + 2 // 2-6囁E
+                    },
+                    modulationTarget: {
+                        moduleId: targetModuleIndex,
+                        paramName: targetParam
+                    }
+                });
+            }
+        }
+    }
+
+    // 接続を生成
+    const audioModules = window.correctAnswer.modulesConfig.filter(m => m.type !== 'lfo' && m.type !== 'pattern');
+    window.correctAnswer.connectionsConfig = [];
     
     // オーディオチェーンの接続
     for (let i = 0; i < audioModules.length - 1; i++) {
-        const sourceIndex = correctAnswer.modulesConfig.indexOf(audioModules[i]);
-        const targetIndex = correctAnswer.modulesConfig.indexOf(audioModules[i + 1]);
-        connectionsConfig.push({ source: sourceIndex, target: targetIndex });
+        const sourceIndex = window.correctAnswer.modulesConfig.indexOf(audioModules[i]);
+        const targetIndex = window.correctAnswer.modulesConfig.indexOf(audioModules[i + 1]);
+        window.correctAnswer.connectionsConfig.push({ source: sourceIndex, target: targetIndex });
     }
     
-    // 最後のオーディオモジュールをoutputに接続
+    // 最後をoutputに接続
     if (audioModules.length > 0) {
-        const lastAudioIndex = correctAnswer.modulesConfig.indexOf(audioModules[audioModules.length - 1]);
-        connectionsConfig.push({ source: lastAudioIndex, target: 'output' });
+        const lastAudioIndex = window.correctAnswer.modulesConfig.indexOf(audioModules[audioModules.length - 1]);
+        window.correctAnswer.connectionsConfig.push({ source: lastAudioIndex, target: 'output' });
     }
     
-    // LFO/Patternモジュレーション接続
-    correctAnswer.modulesConfig.forEach((moduleConfig, index) => {
+    // LFO/Pattern接綁E
+    window.correctAnswer.modulesConfig.forEach((moduleConfig, index) => {
         if ((moduleConfig.type === 'lfo' || moduleConfig.type === 'pattern') && moduleConfig.modulationTarget) {
-            connectionsConfig.push({
+            window.correctAnswer.connectionsConfig.push({
                 source: index,
                 target: moduleConfig.modulationTarget.moduleId,
                 param: moduleConfig.modulationTarget.paramName
@@ -160,9 +150,9 @@ function generateRandomCorrectAnswer() {
         }
     });
     
-    correctAnswer.connectionsConfig = connectionsConfig;
-
-    console.log('新しい正解 (modulesConfig):', JSON.parse(JSON.stringify(correctAnswer.modulesConfig)));
+    console.log('新しい正解 (modulesConfig):', JSON.parse(JSON.stringify(window.correctAnswer.modulesConfig)));
+    console.log('新しい正解 (connectionsConfig):', JSON.parse(JSON.stringify(window.correctAnswer.connectionsConfig)));
+    console.log('=== generateRandomCorrectAnswer END ===');
 }
 
 function createImpulseBuffer(audioContext, time, decay) {
@@ -180,102 +170,21 @@ function createImpulseBuffer(audioContext, time, decay) {
     return impulse;
 }
 
-function playDoorbellSound() {
-    console.log('Playing doorbell sound...');
-    const finalDestination = analyserNode || audioContext.destination;
-    const now = audioContext.currentTime;
-    const attackTime = 0.01;
-    const decayTimeConstant = 0.2; // 音の減衰の速さ（時定数）
-    const releaseTime = 1.0; //音が完全に消えるまでの時間
-
-    // モジュール設定を取得
-    const oscConfig = correctAnswer.modulesConfig.find(m => m.type === 'oscillator').params;
-    const filterConfig = correctAnswer.modulesConfig.find(m => m.type === 'filter').params;
-    const gainConfig = correctAnswer.modulesConfig.find(m => m.type === 'gain').params;
-    const reverbConfig = correctAnswer.modulesConfig.find(m => m.type === 'reverb')?.params;
-
-    // 2つの音を再生する関数
-    const playNote = (freq, startTime) => {
-        // ノードの作成
-        const osc = audioContext.createOscillator();
-        const filter = audioContext.createBiquadFilter();
-        const gainNode = audioContext.createGain();
-
-        // パラメータ設定
-        osc.type = oscConfig.type;
-        osc.frequency.setValueAtTime(freq, startTime);
-        filter.type = filterConfig.type;
-        filter.frequency.setValueAtTime(filterConfig.frequency, startTime);
-        filter.Q.setValueAtTime(filterConfig.q, startTime);
-        
-        // エンベロープ（音量の時間変化）
-        gainNode.gain.setValueAtTime(0, startTime);
-        gainNode.gain.linearRampToValueAtTime(gainConfig.gain, startTime + attackTime); // Attack
-        gainNode.gain.setTargetAtTime(0, startTime + attackTime, decayTimeConstant); // Decay & Release
-
-        // ノード接続
-        osc.connect(filter);
-        filter.connect(gainNode);
-
-        let lastNode = gainNode;
-
-        // リバーブ処理
-        if (reverbConfig) {
-            const impulseBuffer = createImpulseBuffer(audioContext, reverbConfig.time, reverbConfig.decay);
-            if (impulseBuffer) {
-                const convolver = audioContext.createConvolver();
-                convolver.buffer = impulseBuffer;
-                const wetGain = audioContext.createGain();
-                wetGain.gain.setValueAtTime(reverbConfig.mix, startTime);
-                const dryGain = audioContext.createGain();
-                dryGain.gain.setValueAtTime(1 - reverbConfig.mix, startTime);
-
-                lastNode.connect(dryGain);
-                dryGain.connect(finalDestination);
-                lastNode.connect(wetGain);
-                wetGain.connect(convolver);
-                convolver.connect(finalDestination);
-            } else {
-                 lastNode.connect(finalDestination);
-            }
-        } else {
-            lastNode.connect(finalDestination);
-        }
-
-        // 再生と停止
-        osc.start(startTime);
-        osc.stop(startTime + releaseTime);
-    };
-
-    // 1音目 (ピン)
-    const freq1 = oscConfig.frequency; // G5 from config
-    playNote(freq1, now);
-
-    // 2音目 (ポン) - 少し間をあけて、少し低い音
-    const freq2 = 659.25; // E5
-    const delayBetweenNotes = 0.25; // ピンとポンの間の時間
-    playNote(freq2, now + delayBetweenNotes);
-    
-    if (typeof startVisualizer === 'function') startVisualizer();
-}
-
-// playHornSound は削除され、汎用の playCorrectAnswer で処理される
-
 function playCorrectAnswer() {
     console.log('playCorrectAnswer called');
     console.log('audioContext:', audioContext);
     // オブジェクトが大きすぎる可能性があるため、必要な情報のみログに出力
-    console.log('correctAnswer soundType:', correctAnswer?.soundType);
-    console.log('correctAnswer modulesConfig length:', correctAnswer?.modulesConfig?.length);
+    console.log('window.correctAnswer soundType:', window.correctAnswer?.soundType);
+    console.log('window.correctAnswer modulesConfig length:', window.correctAnswer?.modulesConfig?.length);
 
-    if (!audioContext || !correctAnswer.modulesConfig || correctAnswer.modulesConfig.length === 0) {
+    if (!audioContext || !window.correctAnswer || !window.correctAnswer.modulesConfig || window.correctAnswer.modulesConfig.length === 0) {
         console.error("正解を再生できません: オーディオコンテキストまたは設定がありません。");
         alert("正解を再生できません。先にオーディオを開始してください。");
         return;
     }
 
-    // ドアチャイム専用の再生ロジック (複数のノートを順次再生するため)
-    if (correctAnswer.soundType === 'doorbell') {
+    // ドアベル専用の再生ロジック（ピン・ポンの順次再生）
+    if (window.correctAnswer.soundType === 'doorbell') {
         playDoorbellSound();
         return;
     }
@@ -290,7 +199,7 @@ function playCorrectAnswer() {
         const nodeMap = new Map(); // モジュールindexとAudioNodeパッケージをマッピング
 
         // 1. 設定に基づいてすべてのAudioNodeを作成
-        correctAnswer.modulesConfig.forEach((moduleConfig, index) => {
+        window.correctAnswer.modulesConfig.forEach((moduleConfig, index) => {
             let nodePackage = {
                 type: moduleConfig.type,
                 config: moduleConfig,
@@ -382,30 +291,30 @@ function playCorrectAnswer() {
         });
 
         // 2. connectionsConfigに基づいてノードを接続
-        if (!correctAnswer.connectionsConfig) {
+        if (!window.correctAnswer.connectionsConfig) {
             console.error('connectionsConfig is missing!');
-            console.log('correctAnswer structure:', correctAnswer);
-            console.log('Available properties:', Object.keys(correctAnswer));
+            console.log('window.correctAnswer structure:', window.correctAnswer);
+            console.log('Available properties:', Object.keys(window.correctAnswer));
             
             // フォールバック: 基本的な線形接続を生成
-            const audioModules = correctAnswer.modulesConfig.filter(m => m.type !== 'lfo' && m.type !== 'pattern');
+            const audioModules = window.correctAnswer.modulesConfig.filter(m => m.type !== 'lfo' && m.type !== 'pattern');
             const fallbackConnections = [];
             
             // 基本的なオーディオチェーン
             for (let i = 0; i < audioModules.length - 1; i++) {
-                const sourceIndex = correctAnswer.modulesConfig.indexOf(audioModules[i]);
-                const targetIndex = correctAnswer.modulesConfig.indexOf(audioModules[i + 1]);
+                const sourceIndex = window.correctAnswer.modulesConfig.indexOf(audioModules[i]);
+                const targetIndex = window.correctAnswer.modulesConfig.indexOf(audioModules[i + 1]);
                 fallbackConnections.push({ source: sourceIndex, target: targetIndex });
             }
             
             // 最後をoutputに接続
             if (audioModules.length > 0) {
-                const lastIndex = correctAnswer.modulesConfig.indexOf(audioModules[audioModules.length - 1]);
+                const lastIndex = window.correctAnswer.modulesConfig.indexOf(audioModules[audioModules.length - 1]);
                 fallbackConnections.push({ source: lastIndex, target: 'output' });
             }
             
             // LFO/Pattern接続
-            correctAnswer.modulesConfig.forEach((moduleConfig, index) => {
+            window.correctAnswer.modulesConfig.forEach((moduleConfig, index) => {
                 if ((moduleConfig.type === 'lfo' || moduleConfig.type === 'pattern') && moduleConfig.modulationTarget) {
                     fallbackConnections.push({
                         source: index,
@@ -416,11 +325,11 @@ function playCorrectAnswer() {
             });
             
             console.log('Generated fallback connections:', fallbackConnections);
-            correctAnswer.connectionsConfig = fallbackConnections;
+            window.correctAnswer.connectionsConfig = fallbackConnections;
         }
 
-        console.log('[playCorrectAnswer] Processing connections:', correctAnswer.connectionsConfig);
-        correctAnswer.connectionsConfig.forEach((conn, index) => {
+        console.log('[playCorrectAnswer] Processing connections:', window.correctAnswer.connectionsConfig);
+        window.correctAnswer.connectionsConfig.forEach((conn, index) => {
             console.log(`[playCorrectAnswer] Connection ${index}:`, conn);
             const sourcePackage = nodeMap.get(conn.source);
             if (!sourcePackage) {
@@ -450,7 +359,7 @@ function playCorrectAnswer() {
                             baseValue: targetPackage.config.params[targetParamName]
                         };
                         console.log('[Pattern Connection] Connected pattern to', targetParamName, 'baseValue:', patternModule.targetInfo.baseValue);
-                        // 接続後にstart()を呼んでパターンを開始
+                        // 接続後にstart()を呼んでパターンを開姁E
                         patternModule.start();
                         console.log('[playCorrectAnswer] Pattern start() called');
                     } else {
@@ -475,7 +384,7 @@ function playCorrectAnswer() {
                     if (!targetPackage) return;
                     const targetParamName = conn.param;
 
-                    if (targetParamName) { // パラメータ接続
+                    if (targetParamName) { // パラメータ接綁E
                         let targetAudioParam;
                         if (targetPackage.node && targetPackage.node[targetParamName]) {
                             targetAudioParam = targetPackage.node[targetParamName];
@@ -495,7 +404,7 @@ function playCorrectAnswer() {
             }
         });
 
-        // 3. オシレーターとLFOを開始
+        // 3. オシレーターとLFOを開姁E
         allNodes.forEach(node => {
             if (node instanceof OscillatorNode) {
                 node.start(now);
@@ -525,6 +434,108 @@ function playCorrectAnswer() {
     }
 }
 
+function playDoorbellSound() {
+    console.log('Playing doorbell: PING-PONG sequence');
+    const finalDestination = analyserNode || audioContext.destination;
+    const now = audioContext.currentTime;
+    
+    if (typeof startVisualizer === 'function') startVisualizer();
+    
+    // モジュール設定を取得
+    const oscConfig = window.correctAnswer.modulesConfig.find(m => m.type === 'oscillator').params;
+    const gainConfig = window.correctAnswer.modulesConfig.find(m => m.type === 'gain').params;
+    const filterConfig = window.correctAnswer.modulesConfig.find(m => m.type === 'filter').params;
+    const reverbConfig = window.correctAnswer.modulesConfig.find(m => m.type === 'reverb')?.params;
+    
+    // 共通のエフェクトチェーンを作成
+    const filter = audioContext.createBiquadFilter();
+    filter.type = filterConfig.type;
+    filter.frequency.setValueAtTime(filterConfig.frequency, now);
+    filter.Q.setValueAtTime(filterConfig.q, now);
+    
+    let effectsOutput = filter;
+    
+    // リバーブ処理
+    if (reverbConfig) {
+        const impulseBuffer = createImpulseBuffer(audioContext, reverbConfig.time, reverbConfig.decay);
+        if (impulseBuffer) {
+            const convolver = audioContext.createConvolver();
+            convolver.buffer = impulseBuffer;
+            const wetGain = audioContext.createGain();
+            wetGain.gain.setValueAtTime(reverbConfig.mix, now);
+            const dryGain = audioContext.createGain();
+            dryGain.gain.setValueAtTime(1 - reverbConfig.mix, now);
+            const reverbOutput = audioContext.createGain();
+            
+            filter.connect(dryGain);
+            filter.connect(wetGain);
+            dryGain.connect(reverbOutput);
+            wetGain.connect(convolver);
+            convolver.connect(reverbOutput);
+            reverbOutput.connect(finalDestination);
+            effectsOutput = null; // reverbOutputに直接接続済み
+        } else {
+            filter.connect(finalDestination);
+            effectsOutput = null;
+        }
+    } else {
+        filter.connect(finalDestination);
+        effectsOutput = null;
+    }
+    
+    // ピン音の再生（高い音：G5 = 783.99Hz）
+    const playPing = (startTime) => {
+        const osc1 = audioContext.createOscillator();
+        const gain1 = audioContext.createGain();
+        
+        osc1.type = oscConfig.type;
+        osc1.frequency.setValueAtTime(783.99, startTime); // G5
+        
+        // エンベロープ：短く鋭く
+        gain1.gain.setValueAtTime(0, startTime);
+        gain1.gain.linearRampToValueAtTime(gainConfig.gain, startTime + 0.01); // Attack
+        gain1.gain.exponentialRampToValueAtTime(0.001, startTime + 0.5); // Decay
+        
+        osc1.connect(gain1);
+        gain1.connect(filter);
+        
+        osc1.start(startTime);
+        osc1.stop(startTime + 0.6);
+    };
+    
+    // ポン音の再生（低い音：E5 = 659.25Hz）
+    const playPong = (startTime) => {
+        const osc2 = audioContext.createOscillator();
+        const gain2 = audioContext.createGain();
+        
+        osc2.type = oscConfig.type;
+        osc2.frequency.setValueAtTime(659.25, startTime); // E5
+        
+        // エンベロープ：やや長く、柔らかく
+        gain2.gain.setValueAtTime(0, startTime);
+        gain2.gain.linearRampToValueAtTime(gainConfig.gain * 0.8, startTime + 0.02); // Attack
+        gain2.gain.exponentialRampToValueAtTime(0.001, startTime + 0.7); // Decay
+        
+        osc2.connect(gain2);
+        gain2.connect(filter);
+        
+        osc2.start(startTime);
+        osc2.stop(startTime + 0.8);
+    };
+    
+    // ピンポンの正しい再生：PING一回、PONG一回のみ
+    console.log('Playing PING at', (now + 0.05).toFixed(3));
+    playPing(now + 0.05);        // ピン
+    
+    console.log('Playing PONG at', (now + 0.8).toFixed(3));
+    playPong(now + 0.8);         // ポン（0.75秒後）
+
+    // クリーンアップ
+    setTimeout(() => {
+        if (typeof stopVisualizer === 'function') stopVisualizer();
+    }, 2000);
+}
+
 function checkAnswer() {
     // 以前の正解表示とハイライトをクリア
     modules.filter(m => m.isCorrectAnswerModule).forEach(m => m.destroy());
@@ -544,8 +555,8 @@ function checkAnswer() {
     const connectionBonus = 10;
 
     const userModules = modules.filter(m => m.type !== 'output' && !m.isCorrectAnswerModule);
-    const correctModulesConfig = correctAnswer.modulesConfig;
-    const correctConnectionsConfig = correctAnswer.connectionsConfig;
+    const correctModulesConfig = window.correctAnswer.modulesConfig;
+    const correctConnectionsConfig = window.correctAnswer.connectionsConfig;
 
     if (!correctModulesConfig || !correctConnectionsConfig) {
         alert('エラー: 正解データがありません。リセットしてください。');
@@ -555,43 +566,128 @@ function checkAnswer() {
     // --- 正解モジュールをワークスペースに表示 ---
     const correctAnswerModules = []; // 表示された正解モジュールを格納
     const workspaceRect = workspace.getBoundingClientRect();
-    const startY = workspaceRect.height / 2 + 60; 
-    const startX = 50;
-    const moduleWidth = 150;
-    const moduleSpacing = 20;
+    
+    // 新しい配置システム：固定グリッドで配置
+    const GRID_WIDTH = 180;    // グリッドセルの幅
+    const GRID_HEIGHT = 120;   // グリッドセルの高さ
+    const START_X = 50;        // 開始X座標
+    const START_Y = workspaceRect.height / 2 + 60; // 開始Y座標
+    
+    // 占有済みセルを管理するマップ
+    const occupiedCells = new Map(); // "x,y" -> moduleId
+    
+    // セルが占有されているかチェック
+    const isCellOccupied = (gridX, gridY) => {
+        return occupiedCells.has(`${gridX},${gridY}`);
+    };
+    
+    // 利用可能な次のセルを見つける（スパイラル検索）
+    const findAvailableCell = (preferredX = 0, preferredY = 0) => {
+        // まず希望座標をチェック
+        if (!isCellOccupied(preferredX, preferredY)) {
+            return { x: preferredX, y: preferredY };
+        }
+        
+        // スパイラル検索で空きセルを見つける
+        for (let radius = 1; radius <= 10; radius++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                for (let dy = -radius; dy <= radius; dy++) {
+                    // 境界上のセルのみチェック
+                    if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
+                        const x = preferredX + dx;
+                        const y = preferredY + dy;
+                        if (x >= 0 && y >= -2 && !isCellOccupied(x, y)) { // y = -2まで許可
+                            return { x, y };
+                        }
+                    }
+                }
+            }
+        }
+        
+        // フォールバック
+        return { x: preferredX, y: preferredY };
+    };
+    
+    // グリッド座標をピクセル座標に変換
+    const gridToPixel = (gridX, gridY) => {
+        return {
+            x: START_X + gridX * GRID_WIDTH,
+            y: START_Y + gridY * GRID_HEIGHT
+        };
+    };
+    
+    // セルを占有として記録
+    const occupyCell = (gridX, gridY, moduleId) => {
+        occupiedCells.set(`${gridX},${gridY}`, moduleId);
+    };
 
-    // 1. 正解用のOutputモジュールを先に作成・配置
-    // X座標は、モジュールの数に応じて動的に決定
-    const maxModulesInRow = 5;
-    const outputX = startX + (Math.min(correctModulesConfig.length, maxModulesInRow)) * (moduleWidth + moduleSpacing);
-    const correctAnswerOutputModule = createModule('output', outputX, startY, true);
+    // 1. 正解用のOutputモジュールを配置
+    const outputGridPos = findAvailableCell(5, 0); // 右側に配置
+    occupyCell(outputGridPos.x, outputGridPos.y, 'output');
+    const outputPixelPos = gridToPixel(outputGridPos.x, outputGridPos.y);
+    const correctAnswerOutputModule = createModule('output', outputPixelPos.x, outputPixelPos.y, true);
     if (correctAnswerOutputModule) {
         correctAnswerModules.push(correctAnswerOutputModule);
     }
 
-    // 2. correctAnswerModulesに、設定に基づいたモジュールを追加
-    correctModulesConfig.forEach((config, index) => {
-        let moduleX = startX + (index % maxModulesInRow) * (moduleWidth + moduleSpacing);
-        let moduleY = startY + Math.floor(index / maxModulesInRow) * 120;
-
-        // クラクションのレイアウトを特別扱いして見やすくする
-        if (window.location.href.includes('challenge_mode_horn.html')) {
-            if (index === 0) { moduleX = startX; moduleY = startY - 60; } // Osc 1
-            if (index === 1) { moduleX = startX; moduleY = startY + 60; } // Osc 2
-            if (index === 2) { moduleX = startX + moduleWidth + moduleSpacing; moduleY = startY; } // Filter
-            if (index === 3) { moduleX = startX + 2 * (moduleWidth + moduleSpacing); moduleY = startY; } // Gain
-            if (index === 4) { moduleX = startX + 2 * (moduleWidth + moduleSpacing); moduleY = startY + 120; } // Pattern
-            // Outputモジュールの位置も調整
-            if (correctAnswerOutputModule) {
-                 correctAnswerOutputModule.domElement.style.left = `${startX + 3 * (moduleWidth + moduleSpacing)}px`;
-                 correctAnswerOutputModule.domElement.style.top = `${startY}px`;
-            }
-        }
-
-        const newModule = createModule(config.type, moduleX, moduleY, true);
+    // 2. オーディオモジュールをメインライン（y=0）に配置
+    const audioModules = correctModulesConfig.filter(config => 
+        config.type !== 'lfo' && config.type !== 'pattern'
+    );
+    
+    audioModules.forEach((config, index) => {
+        const originalIndex = correctModulesConfig.indexOf(config);
+        const gridPos = findAvailableCell(index, 0); // メインライン（y=0）
+        occupyCell(gridPos.x, gridPos.y, originalIndex);
+        const pixelPos = gridToPixel(gridPos.x, gridPos.y);
+        
+        const newModule = createModule(config.type, pixelPos.x, pixelPos.y, true);
         if (newModule) {
             newModule.setParams(config.params);
-            newModule.originalIndex = index; // 照合のため元のインデックスを保持
+            newModule.originalIndex = originalIndex;
+            correctAnswerModules.push(newModule);
+        }
+    });
+
+    // 3. モジュレーションモジュール（LFO/Pattern）を配置
+    const modulationModules = correctModulesConfig.filter(config => 
+        config.type === 'lfo' || config.type === 'pattern'
+    );
+    
+    modulationModules.forEach((config, index) => {
+        const originalIndex = correctModulesConfig.indexOf(config);
+        let gridPos;
+        
+        // 接続先があれば、その下に配置
+        if (config.modulationTarget) {
+            const targetModuleId = config.modulationTarget.moduleId;
+            const targetModule = correctAnswerModules.find(m => m.originalIndex === targetModuleId);
+            
+            if (targetModule) {
+                // ターゲットモジュールのピクセル座標からグリッド座標を逆算
+                const targetPixelX = parseInt(targetModule.domElement.style.left);
+                const targetPixelY = parseInt(targetModule.domElement.style.top);
+                const targetGridX = Math.round((targetPixelX - START_X) / GRID_WIDTH);
+                const targetGridY = Math.round((targetPixelY - START_Y) / GRID_HEIGHT);
+                
+                // 接続先の下のセルを希望位置とする
+                gridPos = findAvailableCell(targetGridX, targetGridY + 1);
+            } else {
+                // 接続先が見つからない場合、下段に配置
+                gridPos = findAvailableCell(index, 2);
+            }
+        } else {
+            // 接続先がない場合、下段に配置
+            gridPos = findAvailableCell(index, 2);
+        }
+        
+        occupyCell(gridPos.x, gridPos.y, originalIndex);
+        const pixelPos = gridToPixel(gridPos.x, gridPos.y);
+        
+        const newModule = createModule(config.type, pixelPos.x, pixelPos.y, true);
+        if (newModule) {
+            newModule.setParams(config.params);
+            newModule.originalIndex = originalIndex;
             correctAnswerModules.push(newModule);
         }
     });
@@ -618,7 +714,6 @@ function checkAnswer() {
     }
     updateConnectionsSVG(); // 正解の接続を描画
     connections.splice(0, connections.length, ...originalConnections); // ユーザーの接続に戻す
-
 
     // --- 評価ロジック ---
     const matchedUserModules = new Set();
@@ -654,117 +749,96 @@ function checkAnswer() {
                 const correctValue = correctConfig.params[paramName];
                 if (typeof correctValue === 'string') {
                     isMatch = userValue === correctValue;
-                } else if (typeof correctValue === 'number') {
-                    let tolerance = 0.1;
-                    if (['frequency', 'detune', 'amount', 'q', 'repeat'].includes(paramName)) tolerance = correctValue * 0.1; // 10%の誤差を許容
-                    isMatch = Math.abs(userValue - correctValue) <= Math.max(tolerance, 2); // 最低でも2の誤差は許容
+                } else {
+                    const tolerance = Math.abs(correctValue) * 0.1 + 0.01;
+                    isMatch = Math.abs(userValue - correctValue) <= tolerance;
                 }
                 if (isMatch) {
                     score += paramMatchBonus;
-                    explanation += `  - ${paramName}: 一致 (+${paramMatchBonus}点)\n`;
+                    explanation += `  [パラメータ一致] ${paramName}: ${userValue} (+${paramMatchBonus}点)\n`;
                 } else {
                     allParamsMatch = false;
-                    explanation += `  - ${paramName}: 不一致 (正解: ${correctValue}, あなた: ${userValue})\n`;
+                    explanation += `  [パラメータ不一致] ${paramName}: ${userValue} (正解: ${correctValue})\n`;
                 }
             }
-            if (allParamsMatch) {
-                userModule.domElement.style.border = '2px solid #2ecc71'; // Green
-            } else {
-                userModule.domElement.style.border = '2px solid #f1c40f'; // Yellow
-            }
+            // 正解モジュールを緑でハイライト
+            userModule.domElement.style.borderColor = '#10b981';
+            userModule.domElement.style.borderWidth = '3px';
         } else {
-            userModule.domElement.style.border = '2px solid #e74c3c'; // Red
+            explanation += `[不要] ${userModule.name} (${userModule.type}) (${modulePresencePenalty}点)\n`;
             score += modulePresencePenalty;
-            explanation += `[余分] ${userModule.name} (${userModule.type}) (${modulePresencePenalty}点)\n`;
+            // 不要モジュールを赤でハイライト
+            userModule.domElement.style.borderColor = '#ef4444';
+            userModule.domElement.style.borderWidth = '3px';
         }
     });
 
-    // 3. 不足しているモジュールを評価
-    correctModulesConfig.forEach((config, i) => {
-        if (!matchedCorrectConfigs.has(i)) {
-            correctAnswerModules[i].domElement.style.border = '2px solid #e74c3c';
+    // 3. 不足モジュールをチェック
+    correctModulesConfig.forEach((correctConfig, index) => {
+        if (!matchedCorrectConfigs.has(index)) {
+            explanation += `[不足] ${correctConfig.type} モジュールが不足しています (${modulePresencePenalty}点)\n`;
             score += modulePresencePenalty;
-            explanation += `[不足] 正解の ${config.type} がありません (${modulePresencePenalty}点)\n`;
         }
     });
 
     // 4. 接続を評価
-    const userConnections = connections;
-    const matchedUserConnections = new Set();
-    let correctConnectionsFound = 0;
-
-    const correctIndexToUserModuleMap = new Map();
-    correctModulesConfig.forEach((config, index) => {
-        if (correctToUserMap.has(config)) {
-            correctIndexToUserModuleMap.set(index, correctToUserMap.get(config));
-        }
-    });
-
-    correctConnectionsConfig.forEach(correctConn => {
-        const sourceUserModule = correctIndexToUserModuleMap.get(correctConn.source);
-        const targetIsOutput = correctConn.target === 'output';
-        const targetUserModule = targetIsOutput ? null : correctIndexToUserModuleMap.get(correctConn.target);
-
-        let connectionFound = false;
-        if (sourceUserModule && (targetUserModule || targetIsOutput)) {
-            const foundUserConn = userConnections.find(userConn => {
-                if (userConn.sourceId !== sourceUserModule.id) return false;
-                if (userConn.param !== correctConn.param) return false;
-                const userTargetModule = getModuleById(userConn.targetId);
-                if (!userTargetModule) return false;
-                if (targetIsOutput) return userTargetModule.type === 'output';
-                return userTargetModule.id === targetUserModule.id;
-            });
-
-            if (foundUserConn) {
-                connectionFound = true;
-                correctConnectionsFound++;
-                matchedUserConnections.add(foundUserConn);
+    let correctConnectionsCount = 0;
+    if (correctConnectionsConfig) {
+        correctConnectionsConfig.forEach(correctConn => {
+            const sourceUserModule = correctToUserMap.get(correctModulesConfig[correctConn.source]);
+            let targetUserModule;
+            if (correctConn.target === 'output') {
+                targetUserModule = globalOutputNode;
+            } else {
+                targetUserModule = correctToUserMap.get(correctModulesConfig[correctConn.target]);
             }
-        }
 
-        if (connectionFound) {
-            explanation += `[接続OK] ${correctModulesConfig[correctConn.source].type} -> ${targetIsOutput ? 'output' : correctModulesConfig[correctConn.target].type} (+${connectionBonus}点)\n`;
-        } else {
-            explanation += `[接続なし] 正解の ${correctModulesConfig[correctConn.source].type} -> ${targetIsOutput ? 'output' : correctModulesConfig[correctConn.target].type} の接続がありません\n`;
-        }
-    });
-
-    score += correctConnectionsFound * connectionBonus;
-
-    const extraConnections = userConnections.filter(conn => !matchedUserConnections.has(conn));
-    if (extraConnections.length > 0) {
-        score -= extraConnections.length * 5; // Penalty
-        explanation += `[余分な接続] ${extraConnections.length}個の余分な接続があります (-${extraConnections.length * 5}点)\n`;
+            if (sourceUserModule && targetUserModule) {
+                const userConnection = connections.find(conn => 
+                    conn.sourceId === sourceUserModule.id && 
+                    conn.targetId === targetUserModule.id &&
+                    conn.param === correctConn.param
+                );
+                if (userConnection) {
+                    correctConnectionsCount++;
+                    score += connectionBonus;
+                    explanation += `[接続一致] ${sourceUserModule.name} -> ${targetUserModule.name}` + 
+                                 (correctConn.param ? ` (${correctConn.param})` : '') + ` (+${connectionBonus}点)\n`;
+                } else {
+                    explanation += `[接続不足] ${sourceUserModule.name} -> ${targetUserModule.name}` +
+                                 (correctConn.param ? ` (${correctConn.param})` : '') + `\n`;
+                }
+            }
+        });
     }
 
-    // --- 最終スコア表示 ---
-    score = Math.max(0, Math.min(score, maxScore));
-    alert(`スコア: ${Math.round(score)} / ${maxScore}\n\n--- 詳細 ---\n${explanation}`);
-}
-
-function displayCorrectAnswerDetails() {
-    // 必要に応じて実装
+    score = Math.max(0, Math.min(maxScore, score));
+    
+    // 結果表示
+    const resultText = `あなたのスコア: ${score}/${maxScore}\n\n${explanation}`;
+    alert(resultText);
+    
+    console.log('正解チェック完了。スコア:', score);
 }
 
 function showHint1() {
     const hintDisplay = document.getElementById('hint-display');
-    if (!hintDisplay || !correctAnswer || !correctAnswer.modulesConfig) return;
-
-    const moduleCount = correctAnswer.modulesConfig.length;
-    hintDisplay.innerHTML = `<p>正解のモジュール数は <strong>${moduleCount}</strong> 個です。(Outputを除く)</p>`;
+    if (!hintDisplay || !window.correctAnswer || !window.correctAnswer.modulesConfig) return;
+    
+    const moduleCount = window.correctAnswer.modulesConfig.length;
+    hintDisplay.innerHTML = `<p>正解のモジュール数は <strong>${moduleCount}</strong> 個です（Outputを除く）</p>`;
 }
 
 function showHint2() {
     const hintDisplay = document.getElementById('hint-display');
-    if (!hintDisplay || !correctAnswer || !correctAnswer.modulesConfig) return;
-
-    const moduleTypes = correctAnswer.modulesConfig.map(m => m.type);
-    // シャッフルして順番をわからなくする
-    for (let i = moduleTypes.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [moduleTypes[i], moduleTypes[j]] = [moduleTypes[j], moduleTypes[i]];
-    }
+    if (!hintDisplay || !window.correctAnswer || !window.correctAnswer.modulesConfig) return;
     
-    hintDisplay.innerHTML = `<p>使用されているモジュールの種類は...<br><strong>${moduleTypes.join(', ')}</strong> です。</p><p class="text-xs text-gray-500">(順不同)</p>`;
+    const moduleTypes = [];
+    window.correctAnswer.modulesConfig.forEach(config => {
+        if (!moduleTypes.includes(config.type)) {
+            moduleTypes.push(config.type);
+        }
+    });
+    
+    hintDisplay.innerHTML = `<p>使用されているモジュールの種類は...<br><strong>${moduleTypes.join(', ')}</strong> です。</p><p class="text-xs text-gray-500">(順序は無関係)</p>`;
 }
