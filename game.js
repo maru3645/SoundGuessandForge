@@ -630,22 +630,79 @@ function checkAnswer() {
         correctAnswerModules.push(correctAnswerOutputModule);
     }
 
-    // 2. オーディオモジュールをメインライン（y=0）に配置
+    // 2. オーディオモジュールを並列構造を考慮して配置
     const audioModules = correctModulesConfig.filter(config => 
         config.type !== 'lfo' && config.type !== 'pattern'
     );
     
+    // 並列チェーンを検出する関数
+    const findParallelChains = () => {
+        const chains = [];
+        const visitedModules = new Set();
+        
+        // outputに直接接続されているモジュールから逆方向に辿る
+        const outputConnections = correctConnectionsConfig.filter(conn => conn.target === 'output');
+        
+        outputConnections.forEach(outputConn => {
+            const chain = [];
+            let currentModuleIndex = outputConn.source;
+            
+            // チェーンを逆方向に辿る
+            while (currentModuleIndex !== undefined && !visitedModules.has(currentModuleIndex)) {
+                visitedModules.add(currentModuleIndex);
+                chain.unshift(currentModuleIndex); // 先頭に追加（逆順）
+                
+                // このモジュールの入力を探す
+                const inputConnection = correctConnectionsConfig.find(conn => 
+                    conn.target === currentModuleIndex && !conn.param
+                );
+                currentModuleIndex = inputConnection ? inputConnection.source : undefined;
+            }
+            
+            if (chain.length > 0) {
+                chains.push(chain);
+            }
+        });
+        
+        return chains;
+    };
+    
+    const parallelChains = findParallelChains();
+    console.log('Detected parallel chains:', parallelChains);
+    
+    // 並列チェーンを縦に配置
+    parallelChains.forEach((chain, chainIndex) => {
+        chain.forEach((moduleIndex, positionInChain) => {
+            const config = correctModulesConfig[moduleIndex];
+            const gridPos = findAvailableCell(positionInChain, chainIndex); // x=チェーン内位置, y=チェーン番号
+            occupyCell(gridPos.x, gridPos.y, moduleIndex);
+            const pixelPos = gridToPixel(gridPos.x, gridPos.y);
+            
+            const newModule = createModule(config.type, pixelPos.x, pixelPos.y, true);
+            if (newModule) {
+                newModule.setParams(config.params);
+                newModule.originalIndex = moduleIndex;
+                correctAnswerModules.push(newModule);
+            }
+        });
+    });
+    
+    // 並列チェーンに含まれていないオーディオモジュールがあれば、追加で配置
     audioModules.forEach((config, index) => {
         const originalIndex = correctModulesConfig.indexOf(config);
-        const gridPos = findAvailableCell(index, 0); // メインライン（y=0）
-        occupyCell(gridPos.x, gridPos.y, originalIndex);
-        const pixelPos = gridToPixel(gridPos.x, gridPos.y);
+        const isAlreadyPlaced = correctAnswerModules.some(m => m.originalIndex === originalIndex);
         
-        const newModule = createModule(config.type, pixelPos.x, pixelPos.y, true);
-        if (newModule) {
-            newModule.setParams(config.params);
-            newModule.originalIndex = originalIndex;
-            correctAnswerModules.push(newModule);
+        if (!isAlreadyPlaced) {
+            const gridPos = findAvailableCell(index, parallelChains.length); // 下の行に配置
+            occupyCell(gridPos.x, gridPos.y, originalIndex);
+            const pixelPos = gridToPixel(gridPos.x, gridPos.y);
+            
+            const newModule = createModule(config.type, pixelPos.x, pixelPos.y, true);
+            if (newModule) {
+                newModule.setParams(config.params);
+                newModule.originalIndex = originalIndex;
+                correctAnswerModules.push(newModule);
+            }
         }
     });
 
@@ -670,15 +727,18 @@ function checkAnswer() {
                 const targetGridX = Math.round((targetPixelX - START_X) / GRID_WIDTH);
                 const targetGridY = Math.round((targetPixelY - START_Y) / GRID_HEIGHT);
                 
-                // 接続先の下のセルを希望位置とする
-                gridPos = findAvailableCell(targetGridX, targetGridY + 1);
+                // 接続先の下のセルを希望位置とする（並列チェーンの下に配置）
+                const maxChainY = parallelChains.length > 0 ? Math.max(...parallelChains.map((chain, chainIndex) => chainIndex)) : 0;
+                gridPos = findAvailableCell(targetGridX, maxChainY + 1);
             } else {
-                // 接続先が見つからない場合、下段に配置
-                gridPos = findAvailableCell(index, 2);
+                // 接続先が見つからない場合、LFO専用エリアに配置
+                const maxChainY = parallelChains.length > 0 ? Math.max(...parallelChains.map((chain, chainIndex) => chainIndex)) : 0;
+                gridPos = findAvailableCell(index, maxChainY + 2);
             }
         } else {
-            // 接続先がない場合、下段に配置
-            gridPos = findAvailableCell(index, 2);
+            // 接続先がない場合、LFO専用エリアに配置
+            const maxChainY = parallelChains.length > 0 ? Math.max(...parallelChains.map((chain, chainIndex) => chainIndex)) : 0;
+            gridPos = findAvailableCell(index, maxChainY + 2);
         }
         
         occupyCell(gridPos.x, gridPos.y, originalIndex);
