@@ -32,22 +32,25 @@ function generateRandomCorrectAnswer() {
     window.correctAnswer.modulesConfig = [];
     window.correctAnswer.connectionsConfig = [];
     
-    const moduleTypes = ['oscillator', 'gain', 'filter', 'reverb'];
-    const numModules = Math.floor(Math.random() * 3) + 2; // 2-4個のモジュール
+    // 必ず最初にオシレーターを追加（音源として必須）
+    window.correctAnswer.modulesConfig.push({
+        type: 'oscillator',
+        params: {
+            type: ['sine', 'square', 'triangle', 'sawtooth'][Math.floor(Math.random() * 4)],
+            frequency: Math.floor(Math.random() * 800) + 200, // 200-1000Hz
+            detune: 0
+        }
+    });
+    
+    // 残りのモジュールをランダムに追加
+    const additionalModuleTypes = ['gain', 'filter', 'reverb'];
+    const numAdditionalModules = Math.floor(Math.random() * 3) + 1; // 1-3個の追加モジュール
 
-    // ランダムなモジュールを生戁E
-    for (let i = 0; i < numModules; i++) {
-        const type = moduleTypes[Math.floor(Math.random() * moduleTypes.length)];
+    for (let i = 0; i < numAdditionalModules; i++) {
+        const type = additionalModuleTypes[Math.floor(Math.random() * additionalModuleTypes.length)];
         let params = {};
         
         switch (type) {
-            case 'oscillator':
-                params = {
-                    type: ['sine', 'square', 'triangle', 'sawtooth'][Math.floor(Math.random() * 4)],
-                    frequency: Math.floor(Math.random() * 800) + 200, // 200-1000Hz
-                    detune: 0
-                };
-                break;
             case 'gain':
                 params = { gain: Math.random() * 0.8 + 0.2 }; // 0.2-1.0
                 break;
@@ -122,21 +125,25 @@ function generateRandomCorrectAnswer() {
         }
     }
 
-    // 接続を生成
+    // 接続を生成（オシレーターが最初になることが保証されている）
     const audioModules = window.correctAnswer.modulesConfig.filter(m => m.type !== 'lfo' && m.type !== 'pattern');
     window.correctAnswer.connectionsConfig = [];
     
-    // オーディオチェーンの接続
+    console.log('Audio modules for connection:', audioModules.map(m => m.type));
+    
+    // オーディオチェーンの接続（線形チェーン）
     for (let i = 0; i < audioModules.length - 1; i++) {
         const sourceIndex = window.correctAnswer.modulesConfig.indexOf(audioModules[i]);
         const targetIndex = window.correctAnswer.modulesConfig.indexOf(audioModules[i + 1]);
         window.correctAnswer.connectionsConfig.push({ source: sourceIndex, target: targetIndex });
+        console.log(`Connection: ${audioModules[i].type} (${sourceIndex}) -> ${audioModules[i + 1].type} (${targetIndex})`);
     }
     
     // 最後をoutputに接続
     if (audioModules.length > 0) {
         const lastAudioIndex = window.correctAnswer.modulesConfig.indexOf(audioModules[audioModules.length - 1]);
         window.correctAnswer.connectionsConfig.push({ source: lastAudioIndex, target: 'output' });
+        console.log(`Final connection: ${audioModules[audioModules.length - 1].type} (${lastAudioIndex}) -> output`);
     }
     
     // LFO/Pattern接綁E
