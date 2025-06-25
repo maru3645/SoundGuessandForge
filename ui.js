@@ -167,6 +167,66 @@ function renderParamEditor(module) {
         }
     };
     paramEditorContent.appendChild(deleteButton);
+
+    // --- ここから説明文を追加 ---
+    const desc = document.createElement('div');
+    desc.className = 'mt-4 text-xs text-gray-500';
+
+    switch (module.type) {
+        case 'oscillator':
+            desc.innerHTML = `
+                <b>オシレーター</b>：<br>
+                基本波形（サイン波・矩形波など）を発生させる音源です。<br>
+                <b>Type</b>で波形、<b>Frequency</b>で音の高さ、<b>Detune</b>で微妙な音程のズレを調整できます。
+            `;
+            break;
+        case 'gain':
+            desc.innerHTML = `
+                <b>ゲイン</b>：<br>
+                音量を調整するモジュールです。<br>
+                <b>Gain</b>で音の大きさを0（無音）～1（最大）で設定します。
+            `;
+            break;
+        case 'filter':
+            desc.innerHTML = `
+                <b>フィルター</b>：<br>
+                特定の周波数帯域を強調・カットするモジュールです。<br>
+                <b>Type</b>でフィルターの種類、<b>Frequency</b>で中心周波数、<b>Q</b>で鋭さを調整します。
+            `;
+            break;
+        case 'delay':
+            desc.innerHTML = `
+                <b>ディレイ</b>：<br>
+                音を遅らせて反響（エコー）を作るモジュールです。<br>
+                <b>Delay Time</b>で遅延時間、<b>Feedback</b>で繰り返しの強さを調整します。
+            `;
+            break;
+        case 'reverb':
+            desc.innerHTML = `
+                <b>リバーブ</b>：<br>
+                残響（ホールや部屋の響き）を加えるモジュールです。<br>
+                <b>Mix</b>で原音と残響のバランス、<b>Time</b>で残響の長さを調整します。
+            `;
+            break;
+        case 'lfo':
+            desc.innerHTML = `
+                <b>LFO（低周波発振器）</b>：<br>
+                他のモジュールのパラメータを周期的に変調（揺らす）するためのモジュールです。<br>
+                <b>Type</b>でLFO波形、<b>Frequency</b>で揺れの速さ、<b>Amount</b>で揺れの深さを設定します。<br>
+                右側の黄色い四角から他のモジュールのパラメータ入力（黄色い四角）に接続してください。
+            `;
+            break;
+        case 'output':
+            desc.innerHTML = `
+                <b>アウトプット</b>：<br>
+                最終的な音声出力（スピーカー）です。<br>
+                他のモジュールの出力をここに接続してください。
+            `;
+            break;
+        default:
+            desc.innerHTML = '';
+    }
+    paramEditorContent.appendChild(desc);
 }
 
 // ドラッグ＆ドロップ、SVG接続線、接続管理などのUI系関数
