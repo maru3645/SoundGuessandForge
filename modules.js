@@ -184,6 +184,11 @@ class AudioModule {
         }
         return null;
     }
+    setParams(params) {
+        // Generic setParams, subclasses should override for specific logic
+        Object.assign(this.params, params);
+        this.updateParams();
+    }
 }
 
 class OscillatorModule extends AudioModule {
@@ -243,14 +248,20 @@ class OscillatorModule extends AudioModule {
         this.audioNode.frequency.value = this.params.frequency;
         this.audioNode.detune.value = this.params.detune;
     }
+    setParams(params) {
+        Object.assign(this.params, params);
+        this.updateParams();
+    }
 }
 
 class GainModule extends AudioModule {
     constructor(x, y, isCorrectAnswerModule = false) {
         super('gain', x, y, 'Gain ', isCorrectAnswerModule);
-        this.params = { gain: 0.25 };
+        this.params = { gain: 0.5 };
+        this.externalControl = {}; // Track external control per parameter
         this.initAudioNode();
         this.updateParams();
+        // Add a parameter input for the gain value
         this.createParamInputNodeDOM('gain', '75%');
     }
     initAudioNode() {
@@ -273,7 +284,24 @@ class GainModule extends AudioModule {
     }
     updateParams() {
         if (!this.audioNode || !audioContext) return;
-        this.audioNode.gain.value = this.params.gain;
+        // 外部からパラメーター制御されている場合は直接値を設定しない
+        if (!this.externalControl.gain) {
+            this.audioNode.gain.value = this.params.gain;
+        }
+    }
+    
+    // 外部制御の設定/解除
+    setExternalControl(paramName, isExternal) {
+        this.externalControl[paramName] = isExternal;
+        console.log(`[GainModule] External control for ${paramName}:`, isExternal);
+        if (!isExternal) {
+            // 外部制御が解除されたら、元の値に戻す
+            this.updateParams();
+        }
+    }
+    setParams(params) {
+        Object.assign(this.params, params);
+        this.updateParams();
     }
 }
 
@@ -331,6 +359,10 @@ class FilterModule extends AudioModule {
         this.audioNode.frequency.value = this.params.frequency;
         this.audioNode.Q.value = this.params.q;
     }
+    setParams(params) {
+        Object.assign(this.params, params);
+        this.updateParams();
+    }
 }
 
 class DelayModule extends AudioModule {
@@ -379,6 +411,10 @@ class DelayModule extends AudioModule {
         if (!this.audioNode || !this.feedbackNode || !audioContext) return;
         this.audioNode.delayTime.value = this.params.delayTime;
         this.feedbackNode.gain.value = this.params.feedback;
+    }
+    setParams(params) {
+        Object.assign(this.params, params);
+        this.updateParams();
     }
     connectTo(targetModule, targetParam = null) {
         if (!this.audioNode) return false;
@@ -468,6 +504,11 @@ class ReverbModule extends AudioModule {
         this.buildImpulse();
     }
 
+    setParams(params) {
+        Object.assign(this.params, params);
+        this.updateParams();
+    }
+
     getEditorHTML() {
         if (this.isCorrectAnswerModule) {
             return `
@@ -531,6 +572,294 @@ class ReverbModule extends AudioModule {
             return this.wetGain.gain;
         }
         return super.getAudioParam(paramName);
+    }
+}
+
+class PatternModule extends AudioModule {
+    constructor(x, y, isCorrectAnswerModule = false) {
+        super('pattern', x, y, 'Ptn ', isCorrectAnswerModule);
+        this.params = { onTime: 0.15, offTime: 0.1, repeat: 2 };
+        this.isPlaying = false;
+        this.targetInfo = null; // Store target info here { module, paramName, baseValue }
+        this.isLooping = false; // ループ再生のフラグ
+        this.loopTimeoutId = null; // ループ用のタイマーID
+        this.initAudioNode();
+        this.updateParams();
+
+        // Pattern module has no audio input.
+        if (this.domElement.querySelector('.input-node')) {
+            this.domElement.querySelector('.input-node').remove();
+        }
+    }
+
+    initAudioNode() {
+        // PatternModuleは直接制御方式なので、audioNodeは不要
+        // ただし、UIとの互換性のために空のオブジェクトを保持
+        this.audioNode = null;
+    }
+
+    // Override to do nothing, as it has no audio input.
+    createInputNodeDOM() {
+        // Pattern module has no audio input, so don't create input nodes
+    }
+
+    // Override to create a red modulation output node.
+    createOutputNodeDOM() {
+        const outputNodeDOM = document.createElement('div');
+        outputNodeDOM.className = 'io-node param-output-node'; // Red dot for modulation
+        outputNodeDOM.dataset.moduleId = this.id;
+        outputNodeDOM.dataset.nodeType = 'output';
+        this.domElement.appendChild(outputNodeDOM);
+        outputNodeDOM.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            if (this.isCorrectAnswerModule) return;
+            // LFO output is always for parameters
+            startDrawingLine(e, this.id, e.target, 'param');
+        });
+    }
+
+    // Override connectTo to store target info and ensure connection
+    connectTo(targetModule, targetParamName) {
+        console.log('[PatternModule connectTo] Called with:', targetModule?.type, targetModule?.id, targetParamName);
+        
+        // Prevent connecting to correct answer modules
+        if (targetModule?.isCorrectAnswerModule) {
+            console.log('[PatternModule] Ignoring connection to correct answer module');
+            return false;
+        }
+        
+        const targetParam = targetModule.getAudioParam(targetParamName);
+        if (!targetParam) {
+            console.error(`[PatternModule] Target parameter ${targetParamName} not found on module`, targetModule);
+            return false;
+        }
+        // 既に接続済みなら再接続しない
+        if (this.targetInfo && this.targetInfo.module === targetModule && this.targetInfo.paramName === targetParamName) {
+            console.log('[PatternModule] Already connected to', targetModule?.type, targetParamName);
+            return true;
+        }
+        // 既に何かに接続されていたら切断
+        if (this.targetInfo) {
+            console.log('[PatternModule] Disconnecting from previous target');
+            this.disconnectFrom(this.targetInfo.module, this.targetInfo.paramName);
+        }
+        try {
+            // PatternModuleは直接接続せず、直接制御方式を使用
+            this.targetInfo = {
+                module: targetModule,
+                paramName: targetParamName,
+                targetParam: targetParam,
+                baseValue: targetModule.params[targetParamName]
+            };
+            
+            // ターゲットモジュールに外部制御フラグを設定
+            if (targetModule.setExternalControl) {
+                targetModule.setExternalControl(targetParamName, true);
+            }
+            
+            console.log('[PatternModule] Set target for direct control:', targetModule?.type, targetParamName, 'baseValue:', this.targetInfo.baseValue);
+            
+            // 接続後、自動的にパターンを開始（ループモード）
+            if (!this.isCorrectAnswerModule) {
+                this.startLoop();
+                console.log('[PatternModule] Auto-started pattern loop after connection');
+            }
+            
+            return true;
+        } catch (e) {
+            console.error('[PatternModule] Failed to set target', e);
+            return false;
+        }
+    }
+
+    // Override disconnectFrom to clear target info and disconnect
+    disconnectFrom(targetModule, targetParamName) {
+        console.log('[PatternModule disconnectFrom] Called with:', targetModule?.type, targetModule?.id, targetParamName);
+        
+        // Prevent disconnecting from correct answer modules (they shouldn't be connected anyway)
+        if (targetModule?.isCorrectAnswerModule) {
+            console.log('[PatternModule] Ignoring disconnection from correct answer module');
+            return;
+        }
+        
+        if (this.targetInfo && this.targetInfo.module === targetModule && this.targetInfo.paramName === targetParamName) {
+            // ループを停止
+            this.stopLoop();
+            
+            // ターゲットモジュールの外部制御フラグを解除
+            if (targetModule.setExternalControl) {
+                targetModule.setExternalControl(targetParamName, false);
+            }
+            
+            // No physical disconnect since we're using direct control
+            console.log('[PatternModule] Cleared target for direct control', targetModule?.type, targetParamName);
+            this.targetInfo = null;
+        }
+    }
+
+    // Test method to verify pattern functionality
+    testPattern() {
+        console.log('[PatternModule] testPattern() called');
+        if (!this.targetInfo || !audioContext) {
+            console.warn('[PatternModule] Cannot test: target not set or audio context not ready');
+            return;
+        }
+        
+        const now = audioContext.currentTime;
+        const param = this.targetInfo.targetParam;
+        const testValue = this.targetInfo.baseValue || 0.8; // Use base value or fallback
+        
+        console.log('[PatternModule] Starting test pattern with value:', testValue);
+        
+        param.cancelScheduledValues(now);
+        param.setValueAtTime(0, now);
+        
+        // Simple test: ON for 0.2s, OFF for 0.1s, repeat twice
+        param.setValueAtTime(testValue, now + 0.1); // ON
+        param.setValueAtTime(0, now + 0.3);         // OFF
+        param.setValueAtTime(testValue, now + 0.4); // ON
+        param.setValueAtTime(0, now + 0.6);         // OFF
+        
+        console.log('[PatternModule] Test pattern scheduled directly on target param');
+    }
+
+    start() {
+        if (!this.targetInfo || !audioContext) {
+            console.warn('[PatternModule] Pattern target not set or audio context not ready.');
+            return;
+        }
+        const now = audioContext.currentTime;
+        const param = this.targetInfo.targetParam;
+        const baseValue = this.targetInfo.baseValue;
+        const startTime = now + 0.005;
+        
+        console.log('[PatternModule] start() - Current audioContext.currentTime:', now);
+        console.log('[PatternModule] start() - Target param:', param);
+        console.log('[PatternModule] start() - Base value:', baseValue);
+        console.log('[PatternModule] start() - Params:', this.params);
+        
+        // 直接制御：現在の値をクリアして、パターンをスケジューリング
+        param.cancelScheduledValues(now);
+        param.setValueAtTime(0, now); // 初期値は0（無音）
+        
+        let scheduleTime = startTime;
+        for (let i = 0; i < this.params.repeat; i++) {
+            console.log(`[PatternModule] Scheduling burst ${i+1}: ON at ${scheduleTime.toFixed(3)}, OFF at ${(scheduleTime + this.params.onTime).toFixed(3)}`);
+            param.setValueAtTime(baseValue, scheduleTime); // ON: baseValueで音が出る
+            scheduleTime += this.params.onTime;
+            param.setValueAtTime(0, scheduleTime);         // OFF: 0で音が止まる
+            if (i < this.params.repeat - 1) {
+                scheduleTime += this.params.offTime;
+            }
+        }
+        console.log('[PatternModule] start() called, pattern scheduled directly on param with baseValue:', baseValue, this.params);
+    }
+
+    startLoop() {
+        if (!this.targetInfo || !audioContext) {
+            console.warn('[PatternModule] Pattern target not set for loop.');
+            return;
+        }
+        
+        this.isLooping = true;
+        console.log('[PatternModule] Starting loop mode');
+        
+        const scheduleNext = () => {
+            if (!this.isLooping || !this.targetInfo) return;
+            
+            this.start(); // 一回分のパターンを実行
+            
+            // 次のループまでの時間を計算
+            const totalPatternTime = (this.params.onTime + this.params.offTime) * this.params.repeat;
+            const nextLoopDelay = totalPatternTime + 0.5; // 0.5秒の間隔を追加
+            
+            this.loopTimeoutId = setTimeout(scheduleNext, nextLoopDelay * 1000);
+        };
+        
+        scheduleNext();
+    }
+
+    stopLoop() {
+        this.isLooping = false;
+        if (this.loopTimeoutId) {
+            clearTimeout(this.loopTimeoutId);
+            this.loopTimeoutId = null;
+        }
+        console.log('[PatternModule] Stopped loop mode');
+    }
+
+    stop() {
+        this.stopLoop(); // ループも停止
+        if (this.targetInfo && audioContext) {
+            const param = this.targetInfo.targetParam;
+            const now = audioContext.currentTime;
+            param.cancelScheduledValues(now);
+            param.setValueAtTime(0, now);
+            console.log('[PatternModule] stop() called, param set to 0');
+        }
+    }
+    
+    getEditorHTML() {
+        if (this.isCorrectAnswerModule) {
+            return `<div class="p-2">
+                <p class="text-sm text-gray-600">ON時間: ${this.params.onTime}s</p>
+                <p class="text-sm text-gray-600">OFF時間: ${this.params.offTime}s</p>
+                <p class="text-sm text-gray-600">リピート: ${this.params.repeat}回</p>
+            </div>`;
+        }
+        return `
+            <div class="p-2">
+                <label class="param-label">ON時間 (s): <span id="pattern-on-val-${this.id}">${this.params.onTime.toFixed(2)}</span></label>
+                <input type="range" id="pattern-on-${this.id}" class="param-slider" min="0.01" max="2" step="0.01" value="${this.params.onTime}">
+                
+                <label class="param-label mt-2">OFF時間 (s): <span id="pattern-off-val-${this.id}">${this.params.offTime.toFixed(2)}</span></label>
+                <input type="range" id="pattern-off-${this.id}" class="param-slider" min="0.01" max="2" step="0.01" value="${this.params.offTime}">
+
+                <label class="param-label mt-2">リピート回数: <span id="pattern-repeat-val-${this.id}">${this.params.repeat}</span></label>
+                <input type="range" id="pattern-repeat-${this.id}" class="param-slider" min="1" max="10" step="1" value="${this.params.repeat}">
+            </div>
+        `;
+    }
+
+    updateParams() {
+        if (this.isCorrectAnswerModule) return;
+        const onTimeInput = document.getElementById(`pattern-on-${this.id}`);
+        const offTimeInput = document.getElementById(`pattern-off-${this.id}`);
+        const repeatInput = document.getElementById(`pattern-repeat-${this.id}`);
+        
+        if (onTimeInput) this.params.onTime = parseFloat(onTimeInput.value);
+        if (offTimeInput) this.params.offTime = parseFloat(offTimeInput.value);
+        if (repeatInput) this.params.repeat = parseInt(repeatInput.value, 10);
+
+        const onTimeVal = document.getElementById(`pattern-on-val-${this.id}`);
+        const offTimeVal = document.getElementById(`pattern-off-val-${this.id}`);
+        const repeatVal = document.getElementById(`pattern-repeat-val-${this.id}`);
+
+        if(onTimeVal) onTimeVal.textContent = this.params.onTime.toFixed(2);
+        if(offTimeVal) offTimeVal.textContent = this.params.offTime.toFixed(2);
+        if(repeatVal) repeatVal.textContent = this.params.repeat;
+    }
+    
+    setParams(params) {
+        Object.assign(this.params, params);
+        this.updateParams();
+    }
+    
+    destroy() {
+        // ループを停止
+        this.stopLoop();
+        
+        // When the module is destroyed, restore the original value of the target parameter.
+        if (this.targetInfo && this.targetInfo.targetParam) {
+            const targetParam = this.targetInfo.targetParam;
+            const baseValue = this.targetInfo.baseValue;
+            const now = audioContext.currentTime;
+            targetParam.cancelScheduledValues(now);
+            targetParam.setValueAtTime(baseValue, now);
+        }
+        // The ConstantSourceNode does not need to be stopped.
+        // super.destroy() will handle disconnecting everything.
+        super.destroy();
     }
 }
 
@@ -617,6 +946,11 @@ class LFOModule extends AudioModule {
         this.lfoNode.type = this.params.type;
         this.lfoNode.frequency.setValueAtTime(this.params.frequency, audioContext.currentTime);
         this.audioNode.gain.setValueAtTime(this.params.amount, audioContext.currentTime);
+    }
+
+    setParams(params) {
+        Object.assign(this.params, params);
+        this.updateParams();
     }
 
     destroy() {

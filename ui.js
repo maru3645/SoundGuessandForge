@@ -19,6 +19,7 @@ function createModule(type, x, y, isCorrectAnswerModule = false) {
         case 'delay': newModule = new DelayModule(x, y, isCorrectAnswerModule); break;
         case 'reverb': newModule = new ReverbModule(x, y, isCorrectAnswerModule); break;
         case 'lfo': newModule = new LFOModule(x, y, isCorrectAnswerModule); break;
+        case 'pattern': newModule = new PatternModule(x, y, isCorrectAnswerModule); break;
         case 'output': newModule = new OutputModule(x, y, isCorrectAnswerModule); break;
         default: return;
     }
@@ -157,6 +158,32 @@ function renderParamEditor(module) {
             document.getElementById(`lfo-amount-val-${module.id}`).textContent = module.params.amount;
             module.updateParams();
         });
+    } else if (module.type === 'pattern') {
+        const onSlider = document.getElementById(`pattern-on-${module.id}`);
+        const onVal = document.getElementById(`pattern-on-val-${module.id}`);
+        const offSlider = document.getElementById(`pattern-off-${module.id}`);
+        const offVal = document.getElementById(`pattern-off-val-${module.id}`);
+        const repeatSlider = document.getElementById(`pattern-repeat-${module.id}`);
+        const repeatVal = document.getElementById(`pattern-repeat-val-${module.id}`);
+
+        if (onSlider && onVal) {
+            onSlider.addEventListener('input', (e) => {
+                module.params.onTime = parseFloat(e.target.value);
+                onVal.textContent = module.params.onTime.toFixed(2);
+            });
+        }
+        if (offSlider && offVal) {
+            offSlider.addEventListener('input', (e) => {
+                module.params.offTime = parseFloat(e.target.value);
+                offVal.textContent = module.params.offTime.toFixed(2);
+            });
+        }
+        if (repeatSlider && repeatVal) {
+            repeatSlider.addEventListener('input', (e) => {
+                module.params.repeat = parseInt(e.target.value, 10);
+                repeatVal.textContent = module.params.repeat;
+            });
+        }
     }
     const deleteButton = document.createElement('button');
     deleteButton.textContent = 'モジュール削除';
@@ -223,6 +250,20 @@ function renderParamEditor(module) {
                   <li><b>フィルター frequency</b>：フィルターのカットオフ周波数が揺れ、ワウやオートワウのような効果になります。</li>
                   <li><b>ディレイ delayTime</b>：ディレイの遅延時間が揺れ、ピッチが揺れるような特殊な効果が得られます。</li>
                   <li><b>リバーブ mix</b>：残響の量が周期的に変化し、空間感が揺れます。</li>
+                </ul>
+            `;
+            break;
+        case 'pattern':
+            desc.innerHTML = `
+                <b>パターン</b>：<br>
+                設定した時間でON/OFFを繰り返し、他のモジュールのパラメータを変調させます。<br>
+                <b>On Time</b>でONの時間、<b>Off Time</b>でOFFの時間、<b>Repeat</b>で繰り返す回数を設定します。<br>
+                クラクションの「プップー」という音や、周期的なゲート効果を作り出せます。<br>
+                右側の黄色い四角から他のモジュールのパラメータ入力（黄色い四角）に接続してください。
+                <hr class="my-2">
+                <b>パターンを各モジュールに接続した場合の効果：</b><br>
+                <ul class="list-disc ml-4">
+                  <li><b>ゲイン gain</b>：音量を断続的にON/OFFさせ、ゲート効果やリズムパターンを作り出します。</li>
                 </ul>
             `;
             break;

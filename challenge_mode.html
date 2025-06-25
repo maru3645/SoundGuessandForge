@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>サウンド・ゲス・アンド・フォージ - チャレンジモード</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #e9e9e9; }
+        .preset-btn {
+            display: block;
+            width: 100%;
+            max-width: 400px;
+            margin: 18px auto;
+            padding: 18px 0;
+            font-size: 1.1em;
+            font-weight: bold;
+            border-radius: 10px;
+            border: none;
+            background: #f39c12;
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .preset-btn:hover { background: #c97c0a; }
+        .back-btn {
+            margin: 24px auto 0 auto;
+            display: block;
+            background: #95a5a6;
+            color: #fff;
+            border-radius: 8px;
+            padding: 10px 24px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .back-btn:hover { background: #7f8c8d; }
+    </style>
+</head>
+<body>
+    <div class="flex flex-col items-center justify-center min-h-screen">
+        <h1 class="text-2xl font-bold mb-4">チャレンジモード</h1>
+        <div class="mb-6 text-center text-gray-700">
+            <p>日常の音を再現してみよう！<br>チャレンジしたい音を選んでください。</p>
+        </div>
+        <button class="preset-btn" onclick="location.href='challenge_mode_siren.html'">救急車のサイレン</button>
+        <button class="preset-btn" onclick="location.href='challenge_mode_doorbell.html'">ドアチャイム（ピンポン）</button>
+        <button class="preset-btn" onclick="location.href='challenge_mode_horn.html'">車のクラクション</button>
+        <button class="preset-btn" onclick="location.href='challenge_mode_microwave.html'">電子レンジの完了音</button>
+        <button class="preset-btn" onclick="location.href='challenge_mode_alarm.html'">時計のアラーム音</button>
+        <button class="preset-btn" onclick="location.href='challenge_mode_blinker.html'">車のウィンカー音</button>
+        <button class="preset-btn" onclick="location.href='challenge_mode_dial.html'">電話のダイヤル音</button>
+        <button class="preset-btn" onclick="location.href='challenge_mode_startup.html'">パソコンの起動音</button>
+        <button class="preset-btn" onclick="location.href='challenge_mode_phone.html'">電話の着信音</button>
+        <button class="back-btn" onclick="location.href='sound_guess_and_forge.html'">← モード選択に戻る</button>
+    </div>
+</body>
+</html>
+</html>
